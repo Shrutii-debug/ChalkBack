@@ -31,6 +31,6 @@ type Question struct {
 	TeacherID uint `gorm:"index;not null" json:"teacher_id"`
 	QuestionText string `gorm:"not null" json:"question_text"`
 	AnswerText string `json:"answer_text"`
-	isAnswered bool `gorm:"default:false" json:"is_answered"`
+	IsAnswered bool `gorm:"default:false" json:"is_answered"`
 	CreatedAT time.Time `json:"created_at"`
 }
