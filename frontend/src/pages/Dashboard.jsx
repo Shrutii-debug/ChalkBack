@@ -1,245 +1,226 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import toast from 'react-hot-toast'
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis,
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
 } from 'recharts'
+import toast from 'react-hot-toast'
 import api from '../api'
-import WordCloud   from '../components/WordCloud'
-import MoodMeter   from '../components/MoodMeter'
+import WordCloud from '../components/WordCloud'
+import MoodMeter from '../components/MoodMeter'
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-const card = (style = {}) => ({
-  background: '#1a2e22',
-  border: '1px solid #2d5040',
-  borderRadius: '16px',
-  padding: '20px',
-  ...style,
-})
+const TABS = ['Overview', 'Feedback', 'Q&A', 'Settings']
 
-const TABS = ['Overview', 'Feedback', 'Q&A']
-
-// ── Dashboard ──────────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const navigate = useNavigate()
-
-  const [teacher,   setTeacher]   = useState(null)
-  const [summary,   setSummary]   = useState(null)
+  const [teacher, setTeacher] = useState(null)
+  const [summary, setSummary] = useState(null)
   const [wordcloud, setWordcloud] = useState([])
   const [feedbacks, setFeedbacks] = useState([])
   const [questions, setQuestions] = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [tab,       setTab]       = useState('Overview')
-  const [answers,   setAnswers]   = useState({})   // { [questionId]: text }
-  const [answering, setAnswering] = useState(null) // id currently being submitted
+  const [settings, setSettings] = useState(null)
+  const [settingsForm, setSettingsForm] = useState(null)
+  const [tab, setTab] = useState('Overview')
+  const [answerDraft, setAnswerDraft] = useState({})
+  const navigate = useNavigate()
 
-  // ── Fetch all data ────────────────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     try {
-      const [me, sum, wc, fb, qa] = await Promise.all([
+      const [me, sum, wc, fb, qa, set] = await Promise.all([
         api.get('/dashboard/me'),
         api.get('/dashboard/summary'),
         api.get('/dashboard/wordcloud'),
         api.get('/dashboard/feedback'),
         api.get('/dashboard/qa'),
+        api.get('/dashboard/settings'),
       ])
       setTeacher(me.data)
       setSummary(sum.data)
       setWordcloud(wc.data || [])
       setFeedbacks(fb.data || [])
       setQuestions(qa.data || [])
+      setSettings(set.data)
     } catch {
-      // auth error handled by PrivateRoute
-    } finally {
-      setLoading(false)
+      navigate('/login')
     }
-  }, [])
+  }, [navigate])
 
-  // Initial load + auto-refresh every 10 s
   useEffect(() => {
-    fetchData()
-    const interval = setInterval(fetchData, 10000)
+    fetchAll()
+    const interval = setInterval(fetchAll, 10000)
     return () => clearInterval(interval)
-  }, [fetchData])
+  }, [fetchAll])
 
-  // ── Logout ────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (settings && !settingsForm) {
+      setSettingsForm({
+        show_mood: settings.show_mood,
+        show_poll: settings.show_poll,
+        show_ratings: settings.show_ratings,
+        show_feedback_text: settings.show_feedback_text,
+        show_one_thing: settings.show_one_thing,
+        show_qa: settings.show_qa,
+        rating_fields: [...(settings.rating_fields || ['Clarity', 'Engagement', 'Pace', 'Helpfulness'])],
+      })
+    }
+  }, [settings, settingsForm])
+
   const logout = async () => {
     await api.post('/auth/logout')
     navigate('/login')
   }
 
-  // ── Answer a question ─────────────────────────────────────────────────────
   const submitAnswer = async (qId) => {
-    const text = (answers[qId] || '').trim()
-    if (!text) { toast.error('Please write an answer first'); return }
-    setAnswering(qId)
+    const text = answerDraft[qId]?.trim()
+    if (!text) return toast.error('Answer cannot be empty')
     try {
-      await api.post(`/dashboard/qa/${qId}/answer`, { answer_text: text })
+      const r = await api.post(`/dashboard/qa/${qId}/answer`, { answer_text: text })
+      setQuestions(qs => qs.map(q => q.id === qId ? r.data : q))
+      setAnswerDraft(d => ({ ...d, [qId]: '' }))
       toast.success('Answer posted!')
-      setAnswers(a => ({ ...a, [qId]: '' }))
-      fetchData()
     } catch {
       toast.error('Failed to post answer')
-    } finally {
-      setAnswering(null)
     }
   }
 
-  // ── Loading ───────────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0e1a12' }}>
-        <div className="spinner" />
-      </div>
-    )
+  const copyLink = () => {
+    const url = `${window.location.origin}/f/${teacher?.slug}`
+    navigator.clipboard.writeText(url)
+    toast.success('Link copied!')
   }
 
-  // Derived data
-  const unanswered = (questions || []).filter(q => !q.is_answered)
-  const answered   = (questions || []).filter(q =>  q.is_answered)
+  const saveSettings = async () => {
+    if (!settingsForm.rating_fields.length) {
+      return toast.error('Add at least one rating field')
+    }
+    try {
+      await api.post('/dashboard/settings', settingsForm)
+      setSettings({ ...settings, ...settingsForm })
+      toast.success('Settings saved!')
+    } catch {
+      toast.error('Failed to save settings')
+    }
+  }
 
-  const radarData = summary ? [
-    { subject: 'Clarity',     value: +summary.avg_clarity.toFixed(1)     },
-    { subject: 'Engagement',  value: +summary.avg_engagement.toFixed(1)  },
-    { subject: 'Pace',        value: +summary.avg_pace.toFixed(1)        },
-    { subject: 'Helpfulness', value: +summary.avg_helpfulness.toFixed(1) },
-  ] : []
+  const addRatingField = () => {
+    if (settingsForm.rating_fields.length >= 4) {
+      return toast.error('Maximum 4 fields allowed')
+    }
+    setSettingsForm(f => ({
+      ...f,
+      rating_fields: [...f.rating_fields, 'New Field']
+    }))
+  }
 
-  const pollData = summary
-    ? Object.entries(summary.poll_counts || {}).map(([name, value]) => ({ name, value }))
-    : []
+  const removeRatingField = (index) => {
+    if (settingsForm.rating_fields.length <= 1) {
+      return toast.error('Minimum 1 field required')
+    }
+    setSettingsForm(f => ({
+      ...f,
+      rating_fields: f.rating_fields.filter((_, i) => i !== index)
+    }))
+  }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const updateRatingField = (index, value) => {
+    setSettingsForm(f => ({
+      ...f,
+      rating_fields: f.rating_fields.map((field, i) => i === index ? value : field)
+    }))
+  }
+
+  if (!teacher || !summary || !settings) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-chalk-muted animate-pulse font-display text-lg">
+        Loading dashboard...
+      </p>
+    </div>
+  )
+
+  const radarData = Object.entries(summary.avg_ratings || {}).map(([subject, value]) => ({
+    subject,
+    value: +value.toFixed(1)
+  }))
+
+  const pollData = Object.entries(summary.poll_counts || {}).map(([name, value]) => ({
+    name,
+    value
+  }))
+
+  const unanswered = questions.filter(q => !q.is_answered)
+  const answered = questions.filter(q => q.is_answered)
+
   return (
-    <div style={{ minHeight: '100vh', background: '#0e1a12' }}>
+    <div className="min-h-screen" style={{ background: '#111c16' }}>
 
-      {/* ── Topbar ── */}
-      <div style={{
-        borderBottom: '1px solid #2d5040',
-        padding: '14px 24px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        background: '#0e1a12',
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '20px' }}>🖊️</span>
-          <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: '20px', color: '#4ade80' }}>
-            ChalkBack
-          </span>
+      {/* Topbar */}
+      <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between"
+        style={{ background: '#111c16', borderBottom: '1px solid #2d5040' }}>
+        <div className="flex items-center gap-3">
+          <span>🍀</span>
+          <span className="font-display font-bold text-white text-lg">ChalkBack</span>
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {teacher && (
-            <span style={{ fontSize: '14px', color: '#6b9e7e' }}>
-              {teacher.name}
-            </span>
-          )}
-          {teacher && (
-            <a
-              href={`/f/${teacher.slug}`}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                fontSize: '13px',
-                padding: '6px 14px',
-                borderRadius: '8px',
-                background: '#1e3828',
-                border: '1px solid #2d5040',
-                color: '#4ade80',
-                textDecoration: 'none',
-              }}
-            >
-              Student link ↗
-            </a>
-          )}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={copyLink}
+            className="px-4 py-2 rounded-lg text-sm font-display transition-all hover:opacity-80"
+            style={{ background: '#1a2e22', border: '1px solid #2d5040', color: '#4ade80' }}>
+            📋 Copy student link
+          </button>
           <button
             onClick={logout}
-            style={{
-              fontSize: '13px',
-              padding: '6px 14px',
-              borderRadius: '8px',
-              background: 'transparent',
-              border: '1px solid #2d5040',
-              color: '#6b9e7e',
-              cursor: 'pointer',
-            }}
-          >
-            Log out
+            className="text-chalk-muted text-sm hover:text-white transition-colors">
+            Sign out
           </button>
         </div>
       </div>
 
-      {/* ── Main ── */}
-      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px' }}>
+      <div className="max-w-5xl mx-auto px-6 py-8">
 
-        {/* Page title */}
-        <div className="fade-up" style={{ marginBottom: '24px' }}>
-          <h1 style={{ fontFamily: 'Syne, sans-serif', fontSize: '26px', fontWeight: 800, margin: '0 0 4px', color: '#e8f5ee' }}>
-            Your Dashboard
+        {/* Welcome */}
+        <div className="mb-8">
+          <h1 className="font-display text-3xl font-bold text-white">
+            Hey, {teacher.name} 👋
           </h1>
-          <p style={{ color: '#6b9e7e', margin: 0, fontSize: '14px' }}>
-            Live updates every 10 seconds
-            {summary && (
-              <> · <strong style={{ color: '#4ade80' }}>{summary.total_responses}</strong> responses total</>
-            )}
+          <p className="text-chalk-muted text-sm mt-1">
+            {teacher.subject && `${teacher.subject} · `}
+            Your feedback page:{' '}
+            <span className="text-green-400 font-mono text-xs">/f/{teacher.slug}</span>
           </p>
         </div>
 
-        {/* ── Stat cards ── */}
-        {summary && (
-          <div className="fade-up-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
-            {[
-              { label: 'Clarity',     val: summary.avg_clarity.toFixed(1)     },
-              { label: 'Engagement',  val: summary.avg_engagement.toFixed(1)  },
-              { label: 'Pace',        val: summary.avg_pace.toFixed(1)        },
-              { label: 'Helpfulness', val: summary.avg_helpfulness.toFixed(1) },
-            ].map(s => (
-              <div key={s.label} style={card({ textAlign: 'center', padding: '16px 12px' })}>
-                <div style={{ fontSize: '26px', fontWeight: 800, color: '#4ade80', fontFamily: 'Syne, sans-serif' }}>
-                  {s.val}
-                </div>
-                <div style={{ fontSize: '12px', color: '#6b9e7e', marginTop: '2px' }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Stat cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {[
+            { label: 'Total Responses', value: summary.total_responses },
+            { label: 'Rating Fields', value: settings.rating_fields?.length || 0 },
+            { label: 'Questions Asked', value: questions.length },
+            { label: 'Unanswered', value: unanswered.length },
+          ].map(c => (
+            <div key={c.label} className="rounded-2xl p-4"
+              style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
+              <p className="text-chalk-muted text-xs mb-1">{c.label}</p>
+              <p className="font-display text-2xl font-bold text-white">{c.value}</p>
+            </div>
+          ))}
+        </div>
 
-        {/* ── Tabs ── */}
-        <div className="fade-up-2" style={{ display: 'flex', gap: '4px', marginBottom: '20px', borderBottom: '1px solid #2d5040', paddingBottom: '0' }}>
+        {/* Tabs */}
+        <div className="flex gap-1 mb-6 p-1 rounded-xl w-fit"
+          style={{ background: '#1a2e22' }}>
           {TABS.map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
+              className="px-5 py-2 rounded-lg text-sm font-display transition-all"
               style={{
-                padding: '10px 18px',
-                border: 'none',
-                background: 'none',
-                color: tab === t ? '#4ade80' : '#6b9e7e',
-                fontFamily: 'Syne, sans-serif',
-                fontWeight: 600,
-                fontSize: '14px',
-                cursor: 'pointer',
-                borderBottom: tab === t ? '2px solid #4ade80' : '2px solid transparent',
-                marginBottom: '-1px',
-                transition: 'all 0.15s',
-              }}
-            >
+                background: tab === t ? '#111c16' : 'transparent',
+                color: tab === t ? '#ffffff' : '#6b9e7e',
+                border: tab === t ? '1px solid #2d5040' : '1px solid transparent',
+              }}>
               {t}
               {t === 'Q&A' && unanswered.length > 0 && (
-                <span style={{
-                  marginLeft: '6px',
-                  fontSize: '11px',
-                  padding: '1px 6px',
-                  borderRadius: '10px',
-                  background: '#f4c430',
-                  color: '#0e1a12',
-                  fontWeight: 700,
-                }}>
+                <span className="ml-2 px-1.5 py-0.5 rounded-full text-xs"
+                  style={{ background: '#f4c430', color: '#111c16' }}>
                   {unanswered.length}
                 </span>
               )}
@@ -247,188 +228,227 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* ════════════ OVERVIEW TAB ════════════ */}
-        {tab === 'Overview' && summary && (
-          <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+        {/* OVERVIEW TAB */}
+        {tab === 'Overview' && (
+          <div className="space-y-6">
 
-              {/* Mood Meter */}
-              <div style={card()}>
-                <SectionTitle>😊 Mood Breakdown</SectionTitle>
-                <MoodMeter moodCounts={summary.mood_counts} total={summary.total_responses} />
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="rounded-2xl p-6"
+                style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
+                <h2 className="font-display font-semibold text-white mb-4">Mood meter</h2>
+                <MoodMeter moodCounts={summary.mood_counts} />
               </div>
 
-              {/* Radar Chart */}
-              <div style={card()}>
-                <SectionTitle>⭐ Rating Radar</SectionTitle>
-                {summary.total_responses > 0 ? (
-                  <ResponsiveContainer width="100%" height={180}>
-                    <RadarChart data={radarData}>
-                      <PolarGrid stroke="#2d5040" />
-                      <PolarAngleAxis
-                        dataKey="subject"
-                        tick={{ fill: '#6b9e7e', fontSize: 12, fontFamily: 'DM Sans' }}
-                      />
-                      <Radar
-                        name="Ratings"
-                        dataKey="value"
-                        stroke="#4ade80"
-                        fill="#4ade80"
-                        fillOpacity={0.25}
-                        dot={{ fill: '#4ade80', r: 3 }}
-                      />
-                    </RadarChart>
-                  </ResponsiveContainer>
+              <div className="rounded-2xl p-6"
+                style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
+                <h2 className="font-display font-semibold text-white mb-4">Class pace poll</h2>
+                {pollData.length === 0 ? (
+                  <p className="text-chalk-muted text-sm">No poll responses yet.</p>
                 ) : (
-                  <EmptyMsg />
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-
-              {/* Poll Results */}
-              <div style={card()}>
-                <SectionTitle>📊 Class Pace Poll</SectionTitle>
-                {pollData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={140}>
-                    <BarChart data={pollData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                      <XAxis dataKey="name" tick={{ fill: '#6b9e7e', fontSize: 12, fontFamily: 'DM Sans' }} />
-                      <YAxis tick={{ fill: '#6b9e7e', fontSize: 11 }} allowDecimals={false} />
+                    <BarChart data={pollData} barSize={36}>
+                      <XAxis dataKey="name"
+                        tick={{ fill: '#6b9e7e', fontSize: 12, fontFamily: 'DM Sans' }}
+                        axisLine={false} tickLine={false} />
+                      <YAxis hide />
                       <Tooltip
-                        contentStyle={{ background: '#1e3828', border: '1px solid #2d5040', borderRadius: '8px', color: '#e8f5ee' }}
-                        cursor={{ fill: '#ffffff08' }}
+                        contentStyle={{
+                          background: '#111c16',
+                          border: '1px solid #2d5040',
+                          borderRadius: 8,
+                          color: '#e8f5ee',
+                          fontSize: 12
+                        }}
+                        cursor={{ fill: '#2d5040' }}
                       />
-                      <Bar dataKey="value" fill="#4ade80" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                        {pollData.map((_, i) => (
+                          <Cell key={i} fill={['#f87171', '#4ade80', '#fb923c'][i % 3]} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
-                ) : (
-                  <EmptyMsg />
                 )}
               </div>
-
-              {/* Word Cloud */}
-              <div style={card()}>
-                <SectionTitle>☁️ Word Cloud</SectionTitle>
-                <WordCloud words={wordcloud} />
-              </div>
             </div>
 
-            {/* One Thing to Improve */}
-            <div style={card()}>
-              <SectionTitle>💡 One Thing to Improve</SectionTitle>
-              {(summary.one_thing_snippets || []).length === 0 ? (
-                <EmptyMsg />
+            <div className="rounded-2xl p-6"
+              style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
+              <h2 className="font-display font-semibold text-white mb-4">Rating breakdown</h2>
+              {radarData.length === 0 ? (
+                <p className="text-chalk-muted text-sm">No ratings yet.</p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto' }}>
-                  {summary.one_thing_snippets.map((s, i) => (
-                    <div key={i} style={{
-                      display: 'flex',
-                      gap: '10px',
-                      alignItems: 'flex-start',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      background: '#1e3828',
-                      border: '1px solid #2d5040',
-                    }}>
-                      <span style={{ color: '#4ade80', fontSize: '14px', marginTop: '1px', flexShrink: 0 }}>→</span>
-                      <p style={{ margin: 0, fontSize: '14px', color: '#a0c8b0', lineHeight: 1.5 }}>{s}</p>
-                    </div>
-                  ))}
-                </div>
+                <ResponsiveContainer width="100%" height={260}>
+                  <RadarChart data={radarData}>
+                    <PolarGrid stroke="#2d5040" />
+                    <PolarAngleAxis dataKey="subject"
+                      tick={{ fill: '#6b9e7e', fontSize: 12, fontFamily: 'DM Sans' }} />
+                    <Radar dataKey="value" stroke="#4ade80" fill="#4ade80"
+                      fillOpacity={0.2} dot={{ fill: '#4ade80', r: 4 }} />
+                  </RadarChart>
+                </ResponsiveContainer>
               )}
             </div>
-          </div>
-        )}
 
-        {/* ════════════ FEEDBACK TAB ════════════ */}
-        {tab === 'Feedback' && (
-          <div>
-            {feedbacks.length === 0 ? (
-              <div style={{ ...card(), textAlign: 'center', padding: '48px' }}>
-                <span style={{ fontSize: '40px', display: 'block', marginBottom: '12px' }}>📭</span>
-                <p style={{ color: '#6b9e7e', margin: 0 }}>No feedback yet</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {feedbacks.map(f => (
-                  <FeedbackCard key={f.id} f={f} />
-                ))}
+            <div className="rounded-2xl p-6"
+              style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
+              <h2 className="font-display font-semibold text-white mb-1">Word cloud</h2>
+              <p className="text-chalk-muted text-xs mb-4">
+                Most repeated words from all feedback
+              </p>
+              <WordCloud words={wordcloud} />
+            </div>
+
+            {summary.one_thing_snippets?.length > 0 && (
+              <div className="rounded-2xl p-6"
+                style={{ background: '#1a2e22', border: '2px solid #f4c43033' }}>
+                <h2 className="font-display font-semibold text-white mb-1">
+                  <span style={{ color: '#f4c430' }}>★</span> One thing to improve
+                </h2>
+                <p className="text-chalk-muted text-xs mb-4">
+                  Anonymous student suggestions
+                </p>
+                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                  {summary.one_thing_snippets.map((s, i) => (
+                    <div key={i} className="flex gap-3 p-3 rounded-xl"
+                      style={{ background: '#111c16', border: '1px solid #2d5040' }}>
+                      <span className="text-chalk-muted text-sm mt-0.5">→</span>
+                      <p className="text-chalk-text text-sm leading-relaxed">{s}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
         )}
 
-        {/* ════════════ Q&A TAB ════════════ */}
+        {/* FEEDBACK TAB */}
+        {tab === 'Feedback' && (
+          <div className="space-y-4">
+            {feedbacks.length === 0 && (
+              <div className="text-center py-16">
+                <div className="text-4xl mb-3">📭</div>
+                <p className="text-chalk-muted">No feedback yet. Share your student link!</p>
+              </div>
+            )}
+            {feedbacks.map(f => {
+              const moodEmoji = ['', '😕', '😐', '😊', '🔥'][f.mood] || '—'
+              const date = new Date(f.created_at).toLocaleDateString('en-IN', {
+                day: 'numeric', month: 'short'
+              })
+              let ratingsObj = {}
+              try { ratingsObj = JSON.parse(f.ratings_json) } catch {}
+
+              return (
+                <div key={f.id} className="rounded-2xl p-5"
+                  style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span style={{ fontSize: 20 }}>{moodEmoji}</span>
+                      {f.quick_poll_answer && (
+                        <span className="text-xs px-2 py-0.5 rounded-full"
+                          style={{
+                            background: '#111c16',
+                            color: '#6b9e7e',
+                            border: '1px solid #2d5040'
+                          }}>
+                          {f.quick_poll_answer}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-chalk-muted">{date}</span>
+                  </div>
+
+                  {Object.keys(ratingsObj).length > 0 && (
+                    <div className="grid grid-cols-4 gap-2 mb-3">
+                      {Object.entries(ratingsObj).map(([field, val]) => (
+                        <div key={field} className="text-center p-2 rounded-lg"
+                          style={{ background: '#111c16' }}>
+                          <p className="text-xs text-chalk-muted">{field}</p>
+                          <p className="font-display font-semibold text-white text-sm">{val}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {f.feedback_text && (
+                    <p className="text-chalk-text text-sm leading-relaxed mb-2">
+                      {f.feedback_text}
+                    </p>
+                  )}
+                  {f.one_thing_to_improve && (
+                    <div className="mt-2 p-3 rounded-lg flex gap-2"
+                      style={{ background: '#111c16', border: '1px solid #f4c43033' }}>
+                      <span style={{ color: '#f4c430', fontSize: 14 }}>★</span>
+                      <p className="text-sm text-chalk-text">{f.one_thing_to_improve}</p>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Q&A TAB */}
         {tab === 'Q&A' && (
-          <div>
-            {/* Unanswered */}
+          <div className="space-y-6">
             {unanswered.length > 0 && (
-              <div style={{ marginBottom: '24px' }}>
-                <p style={{ fontSize: '13px', color: '#f4c430', fontWeight: 600, marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Needs answer ({unanswered.length})
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <h3 className="font-display font-semibold text-white mb-3 flex items-center gap-2">
+                  Unanswered
+                  <span className="text-xs px-2 py-0.5 rounded-full"
+                    style={{ background: '#f4c430', color: '#111c16' }}>
+                    {unanswered.length}
+                  </span>
+                </h3>
+                <div className="space-y-4">
                   {unanswered.map(q => (
-                    <div key={q.id} style={card({ borderColor: '#f4c43040' })}>
-                      <p style={{ color: '#e8f5ee', fontSize: '15px', margin: '0 0 14px', lineHeight: 1.5 }}>
-                        🙋 {q.question_text}
-                      </p>
-                      <textarea
-                        value={answers[q.id] || ''}
-                        onChange={e => setAnswers(a => ({ ...a, [q.id]: e.target.value }))}
-                        placeholder="Type your answer here…"
-                        rows={2}
-                        style={{
-                          width: '100%',
-                          background: '#1e3828',
-                          border: '1px solid #2d5040',
-                          borderRadius: '10px',
-                          padding: '10px 14px',
-                          color: '#e8f5ee',
-                          outline: 'none',
-                          fontSize: '14px',
-                          resize: 'vertical',
-                          marginBottom: '10px',
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                      <button
-                        onClick={() => submitAnswer(q.id)}
-                        disabled={answering === q.id}
-                        style={{
-                          padding: '8px 18px',
-                          borderRadius: '8px',
-                          border: 'none',
-                          background: answering === q.id ? '#2d5040' : '#4ade80',
-                          color: answering === q.id ? '#6b9e7e' : '#0e1a12',
-                          fontFamily: 'Syne, sans-serif',
-                          fontWeight: 700,
-                          fontSize: '13px',
-                          cursor: answering === q.id ? 'not-allowed' : 'pointer',
-                        }}
-                      >
-                        {answering === q.id ? 'Posting…' : 'Post Answer'}
-                      </button>
+                    <div key={q.id} className="rounded-2xl p-5"
+                      style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
+                      <div className="flex gap-3 mb-3">
+                        <span style={{ fontSize: 18 }}>🙋</span>
+                        <p className="text-chalk-text text-sm leading-relaxed">
+                          {q.question_text}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <textarea
+                          rows={2}
+                          value={answerDraft[q.id] || ''}
+                          onChange={e => setAnswerDraft(d => ({ ...d, [q.id]: e.target.value }))}
+                          placeholder="Type your answer..."
+                          className="flex-1 px-3 py-2 rounded-xl text-chalk-text text-sm outline-none resize-none focus:ring-1 focus:ring-green-500"
+                          style={{ background: '#111c16', border: '1px solid #2d5040' }}
+                        />
+                        <button
+                          onClick={() => submitAnswer(q.id)}
+                          className="px-4 py-2 rounded-xl text-sm font-display font-semibold self-end"
+                          style={{ background: '#4ade80', color: '#111c16' }}>
+                          Post
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Answered */}
             {answered.length > 0 && (
               <div>
-                <p style={{ fontSize: '13px', color: '#6b9e7e', fontWeight: 600, marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Answered ({answered.length})
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <h3 className="font-display font-semibold text-chalk-muted mb-3">Answered</h3>
+                <div className="space-y-4">
                   {answered.map(q => (
-                    <div key={q.id} style={card({ padding: '16px' })}>
-                      <p style={{ color: '#6b9e7e', fontSize: '14px', margin: '0 0 8px' }}>🙋 {q.question_text}</p>
-                      <p style={{ color: '#a0c8b0', fontSize: '14px', margin: 0, paddingLeft: '14px', borderLeft: '2px solid #2d5040' }}>
-                        {q.answer_text}
-                      </p>
+                    <div key={q.id} className="rounded-2xl p-5 opacity-75"
+                      style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
+                      <div className="flex gap-3 mb-3">
+                        <span style={{ fontSize: 18 }}>🙋</span>
+                        <p className="text-chalk-text text-sm">{q.question_text}</p>
+                      </div>
+                      <div className="ml-7 flex gap-3 pt-3"
+                        style={{ borderTop: '1px solid #2d5040' }}>
+                        <span style={{ fontSize: 18 }}>👨‍🏫</span>
+                        <p className="text-chalk-muted text-sm">{q.answer_text}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -436,110 +456,118 @@ export default function Dashboard() {
             )}
 
             {questions.length === 0 && (
-              <div style={{ ...card(), textAlign: 'center', padding: '48px' }}>
-                <span style={{ fontSize: '40px', display: 'block', marginBottom: '12px' }}>💬</span>
-                <p style={{ color: '#6b9e7e', margin: 0 }}>No questions yet</p>
+              <div className="text-center py-16">
+                <div className="text-4xl mb-3">💬</div>
+                <p className="text-chalk-muted">No questions yet from students.</p>
               </div>
             )}
           </div>
         )}
 
-      </div>
-    </div>
-  )
-}
+        {/* SETTINGS TAB */}
+        {tab === 'Settings' && settingsForm && (
+          <div className="space-y-6">
 
-// ── Sub-components ──────────────────────────────────────────────────────────
-function SectionTitle({ children }) {
-  return (
-    <h3 style={{
-      fontFamily: 'Syne, sans-serif',
-      fontSize: '14px',
-      fontWeight: 700,
-      color: '#e8f5ee',
-      margin: '0 0 14px',
-    }}>
-      {children}
-    </h3>
-  )
-}
-
-function EmptyMsg() {
-  return <p style={{ color: '#4b7a5e', fontSize: '13px', margin: 0 }}>Not enough data yet</p>
-}
-
-const MOOD_LABELS = { 1: '😕 Confused', 2: '😐 Okay', 3: '😊 Good', 4: '🔥 Amazing' }
-
-function FeedbackCard({ f }) {
-  return (
-    <div style={{
-      background: '#1a2e22',
-      border: '1px solid #2d5040',
-      borderRadius: '14px',
-      padding: '16px',
-    }}>
-      {/* Top row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
-        <span style={{
-          padding: '3px 10px',
-          borderRadius: '20px',
-          background: '#1e3828',
-          border: '1px solid #2d5040',
-          fontSize: '13px',
-          color: '#a0c8b0',
-        }}>
-          {MOOD_LABELS[f.mood] || '—'}
-        </span>
-        {f.quick_poll_answer && (
-          <span style={{
-            padding: '3px 10px',
-            borderRadius: '20px',
-            background: '#1e3828',
-            border: '1px solid #2d5040',
-            fontSize: '13px',
-            color: '#6b9e7e',
-          }}>
-            {f.quick_poll_answer}
-          </span>
-        )}
-        <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#4b7a5e' }}>
-          {new Date(f.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-        </span>
-      </div>
-
-      {/* Ratings row */}
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
-        {[
-          { label: 'Clarity',    val: f.rating_clarity     },
-          { label: 'Engage',     val: f.rating_engagement  },
-          { label: 'Pace',       val: f.rating_pace        },
-          { label: 'Help',       val: f.rating_helpfulness },
-        ].map(r => (
-          r.val > 0 && (
-            <div key={r.label} style={{ fontSize: '12px', color: '#6b9e7e' }}>
-              {r.label}: <span style={{ color: '#4ade80', fontWeight: 600 }}>{'⭐'.repeat(r.val)}</span>
+            {/* Form section toggles */}
+            <div className="rounded-2xl p-6"
+              style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
+              <h2 className="font-display font-semibold text-white mb-1">Form sections</h2>
+              <p className="text-chalk-muted text-xs mb-5">
+                Choose what appears on your student feedback form
+              </p>
+              <div className="space-y-4">
+                {[
+                  { key: 'show_mood', label: 'Mood Picker', desc: 'Students pick 😕 😐 😊 🔥' },
+                  { key: 'show_poll', label: 'Quick Poll', desc: 'Too fast / Just right / Too slow' },
+                  { key: 'show_ratings', label: 'Star Ratings', desc: 'Custom rating fields with stars' },
+                  { key: 'show_feedback_text', label: 'Open Feedback', desc: 'Free text for general thoughts' },
+                  { key: 'show_one_thing', label: 'One Thing to Improve', desc: 'Required improvement suggestion' },
+                  { key: 'show_qa', label: 'Anonymous Q&A', desc: 'Students ask questions anonymously' },
+                ].map(({ key, label, desc }) => (
+                  <div key={key}
+                    className="flex items-center justify-between p-3 rounded-xl"
+                    style={{ background: '#111c16', border: '1px solid #2d5040' }}>
+                    <div>
+                      <p className="text-chalk-text text-sm font-display font-medium">{label}</p>
+                      <p className="text-chalk-muted text-xs mt-0.5">{desc}</p>
+                    </div>
+                    <button
+                      onClick={() => setSettingsForm(f => ({ ...f, [key]: !f[key] }))}
+                      className="relative w-12 h-6 rounded-full transition-all flex-shrink-0"
+                      style={{ background: settingsForm[key] ? '#4ade80' : '#2d5040' }}>
+                      <span
+                        className="absolute top-1 w-4 h-4 rounded-full transition-all"
+                        style={{
+                          background: 'white',
+                          left: settingsForm[key] ? '26px' : '4px',
+                        }}
+                      />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
-          )
-        ))}
-      </div>
 
-      {/* Texts */}
-      {f.feedback_text && (
-        <p style={{ fontSize: '14px', color: '#a0c8b0', margin: '0 0 8px', lineHeight: 1.5 }}>
-          {f.feedback_text}
-        </p>
-      )}
-      {f.one_thing_to_improve && (
-        <div style={{
-          padding: '8px 12px',
-          borderRadius: '8px',
-          background: '#1e3828',
-          borderLeft: '3px solid #4ade80',
-        }}>
-          <p style={{ fontSize: '13px', color: '#4ade80', margin: '0 0 2px', fontWeight: 600 }}>One thing to improve</p>
-          <p style={{ fontSize: '14px', color: '#a0c8b0', margin: 0, lineHeight: 1.5 }}>{f.one_thing_to_improve}</p>
-        </div>
-      )}
+            {/* Custom rating fields */}
+            {settingsForm.show_ratings && (
+              <div className="rounded-2xl p-6"
+                style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
+                <h2 className="font-display font-semibold text-white mb-1">
+                  Custom rating fields
+                </h2>
+                <p className="text-chalk-muted text-xs mb-5">
+                  Define what students rate — 1 to 4 fields
+                </p>
+                <div className="space-y-3 mb-4">
+                  {settingsForm.rating_fields.map((field, index) => (
+                    <div key={index} className="flex gap-2 items-center">
+                      <input
+                        value={field}
+                        onChange={e => updateRatingField(index, e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-xl text-chalk-text text-sm outline-none"
+                        style={{ background: '#111c16', border: '1px solid #2d5040', color: '#e8f5ee' }}
+                        placeholder="Field name"
+                        maxLength={20}
+                      />
+                      <button
+                        onClick={() => removeRatingField(index)}
+                        className="px-3 py-2 rounded-xl text-sm transition-all hover:opacity-80"
+                        style={{
+                          background: '#111c16',
+                          color: '#f87171',
+                          border: '1px solid #2d5040'
+                        }}>
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {settingsForm.rating_fields.length < 4 && (
+                  <button
+                    onClick={addRatingField}
+                    className="w-full py-2 rounded-xl text-sm font-display transition-all hover:opacity-80"
+                    style={{
+                      background: '#111c16',
+                      color: '#4ade80',
+                      border: '1px dashed #2d5040'
+                    }}>
+                    + Add field
+                  </button>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={saveSettings}
+              className="w-full py-4 rounded-xl font-display font-bold text-base transition-all hover:opacity-90 active:scale-95"
+              style={{ background: '#4ade80', color: '#111c16' }}>
+              Save Settings
+            </button>
+
+          </div>
+        )}
+
+      </div>
     </div>
   )
 }

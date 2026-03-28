@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -17,13 +16,9 @@ import (
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("error laoding .env file")
-	}
+	godotenv.Load()
 
 	config.InitDB()
-	fmt.Println("Everything works! DB connected.")
 
 	r := chi.NewRouter()
 
@@ -42,6 +37,7 @@ func main() {
 	r.Post("/api/auth/logout", handlers.Logout)
 
 	r.Get("/api/form/{slug}", handlers.GetFormInfo)
+	r.Get("/api/form/{slug}/settings", handlers.GetPublicSettings)
 	r.Post("/api/feedback", handlers.SubmitFeedback)
 	r.Post("/api/questions", handlers.SubmitQuestion)
 	r.Get("/api/qa/{slug}", handlers.GetPublicQA)
@@ -49,20 +45,21 @@ func main() {
 	r.Group(func(r chi.Router) {
 		r.Use(authmw.RequireAuth)
 
+		r.Get("/api/dashboard/me", handlers.GetMe)
 		r.Get("/api/dashboard/summary", handlers.GetSummary)
 		r.Get("/api/dashboard/feedback", handlers.GetAllFeedback)
 		r.Get("/api/dashboard/wordcloud", handlers.GetWordCloud)
 		r.Get("/api/dashboard/qa", handlers.GetAllQuestions)
 		r.Post("/api/dashboard/qa/{id}/answer", handlers.AnswerQuestion)
-		r.Get("/api/dashboard/me", handlers.GetMe)
+		r.Get("/api/dashboard/settings", handlers.GetSettings)
+		r.Post("/api/dashboard/settings", handlers.SaveSettings)
 	})
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "8081"
 	}
 
 	log.Printf("ChalkBack API running on :%s", port)
 	log.Fatal(http.ListenAndServe(":"+port, r))
-
 }

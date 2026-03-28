@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../api'
@@ -6,343 +6,299 @@ import StarRating from '../components/StarRating'
 
 const MOODS = [
   { value: 1, emoji: '😕', label: 'Confused' },
-  { value: 2, emoji: '😐', label: 'Okay'     },
-  { value: 3, emoji: '😊', label: 'Good'     },
-  { value: 4, emoji: '🔥', label: 'Amazing'  },
+  { value: 2, emoji: '😐', label: 'Okay' },
+  { value: 3, emoji: '😊', label: 'Good' },
+  { value: 4, emoji: '🔥', label: 'Amazing' },
 ]
 
 const POLL_OPTIONS = ['Too fast', 'Just right', 'Too slow']
 
-const inputStyle = {
-  width: '100%',
-  background: '#1e3828',
-  border: '1px solid #2d5040',
-  borderRadius: '12px',
-  padding: '12px 16px',
-  color: '#e8f5ee',
-  outline: 'none',
-  fontSize: '15px',
-  resize: 'vertical',
-}
-
 export default function FeedbackForm() {
   const { slug } = useParams()
   const [teacher, setTeacher] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [done, setDone] = useState(false)
-
-  const [form, setForm] = useState({
-    mood: 0,
-    rating_clarity: 0,
-    rating_engagement: 0,
-    rating_pace: 0,
-    rating_helpfulness: 0,
-    feedback_text: '',
-    one_thing_to_improve: '',
-    quick_poll_answer: '',
-    question_text: '',
-  })
+  const [settings, setSettings] = useState(null)
+  const [mood, setMood] = useState(0)
+  const [ratings, setRatings] = useState({})
+  const [feedbackText, setFeedbackText] = useState('')
+  const [oneThing, setOneThing] = useState('')
+  const [pollAnswer, setPollAnswer] = useState('')
+  const [questionText, setQuestionText] = useState('')
+  const [step, setStep] = useState(1)
+  const [loading, setLoading] = useState(false)
+  const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
-    api.get(`/form/${slug}`)
-      .then(r => { setTeacher(r.data); setLoading(false) })
-      .catch(() => { setLoading(false) })
+    Promise.all([
+      api.get(`/form/${slug}`),
+      api.get(`/form/${slug}/settings`),
+    ]).then(([teacherRes, settingsRes]) => {
+      setTeacher(teacherRes.data)
+      setSettings(settingsRes.data)
+    }).catch(() => setNotFound(true))
   }, [slug])
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const setRating = (field, value) => {
+    setRatings(prev => ({ ...prev, [field]: value }))
+  }
 
-  const handleSubmit = async () => {
-    if (!form.one_thing_to_improve.trim()) {
-      toast.error('Please fill in "One thing to improve" — it\'s required')
-      return
+  const submit = async e => {
+    e.preventDefault()
+    if (settings.show_mood && !mood) {
+      return toast.error('Please pick a mood')
     }
-    if (form.mood === 0) {
-      toast.error('Please pick a mood')
-      return
+    if (settings.show_one_thing && !oneThing.trim()) {
+      return toast.error('"One thing to improve" is required')
     }
 
-    setSubmitting(true)
+    setLoading(true)
     try {
       await api.post('/feedback', {
-        teacher_slug:        slug,
-        mood:                form.mood,
-        rating_clarity:      form.rating_clarity,
-        rating_engagement:   form.rating_engagement,
-        rating_pace:         form.rating_pace,
-        rating_helpfulness:  form.rating_helpfulness,
-        feedback_text:       form.feedback_text,
-        one_thing_to_improve: form.one_thing_to_improve,
-        quick_poll_answer:   form.quick_poll_answer,
+        teacher_slug: slug,
+        mood,
+        ratings,
+        feedback_text: feedbackText,
+        one_thing_to_improve: oneThing,
+        quick_poll_answer: pollAnswer,
       })
 
-      // submit question separately if filled
-      if (form.question_text.trim()) {
+      if (settings.show_qa && questionText.trim()) {
         await api.post('/questions', {
-          teacher_slug:  slug,
-          question_text: form.question_text,
+          teacher_slug: slug,
+          question_text: questionText.trim(),
         })
       }
-
-      setDone(true)
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Something went wrong')
+      setStep(2)
+    } catch {
+      toast.error('Something went wrong. Please try again.')
     } finally {
-      setSubmitting(false)
+      setLoading(false)
     }
   }
 
-  // ── Loading ──────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0e1a12' }}>
-        <div className="spinner" />
-      </div>
-    )
-  }
-
-  if (!teacher) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0e1a12', flexDirection: 'column', gap: '12px' }}>
-        <span style={{ fontSize: '48px' }}>🔍</span>
-        <p style={{ color: '#6b9e7e', fontSize: '16px' }}>Teacher not found</p>
-      </div>
-    )
-  }
-
-  // ── Done ─────────────────────────────────────────────────────
-  if (done) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0e1a12', padding: '24px' }}>
-        <div className="fade-up" style={{
-          textAlign: 'center',
-          maxWidth: '400px',
-        }}>
-          <div style={{ fontSize: '64px', marginBottom: '16px' }}>✅</div>
-          <h2 style={{ fontFamily: 'Syne, sans-serif', fontSize: '28px', color: '#4ade80', marginBottom: '12px' }}>
-            Feedback sent!
-          </h2>
-          <p style={{ color: '#6b9e7e', lineHeight: 1.6, marginBottom: '24px' }}>
-            Your feedback has been submitted anonymously.<br />
-            Your name, device, and IP address are never stored.
-          </p>
-          <Link to={`/f/${slug}/qa`} style={{
-            display: 'inline-block',
-            padding: '10px 20px',
-            borderRadius: '10px',
-            background: '#1e3828',
-            border: '1px solid #2d5040',
-            color: '#4ade80',
-            textDecoration: 'none',
-            fontSize: '14px',
-          }}>
-            View class Q&amp;A →
-          </Link>
-        </div>
-      </div>
-    )
-  }
-
-  // ── Form ─────────────────────────────────────────────────────
-  return (
-    <div style={{ minHeight: '100vh', background: '#0e1a12', padding: '24px' }}>
-      <div style={{ maxWidth: '560px', margin: '0 auto' }}>
-
-        {/* Header */}
-        <div className="fade-up" style={{ textAlign: 'center', marginBottom: '32px', paddingTop: '16px' }}>
-          <p style={{ fontSize: '13px', color: '#6b9e7e', margin: '0 0 6px' }}>Feedback for</p>
-          <h1 style={{ fontFamily: 'Syne, sans-serif', fontSize: '30px', fontWeight: 800, color: '#e8f5ee', margin: '0 0 4px' }}>
-            {teacher.name}
-          </h1>
-          {teacher.subject && (
-            <span style={{
-              display: 'inline-block',
-              padding: '3px 12px',
-              borderRadius: '20px',
-              background: '#1e3828',
-              border: '1px solid #2d5040',
-              color: '#4ade80',
-              fontSize: '13px',
-            }}>
-              {teacher.subject}
-            </span>
-          )}
-          <p style={{ color: '#4ade80', fontSize: '12px', marginTop: '12px', opacity: 0.7 }}>
-            🔒 Completely anonymous — your identity is never stored
-          </p>
-        </div>
-
-        {/* ── Section 1: Mood ── */}
-        <Section delay="fade-up-1" title="How did class feel today?" required>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            {MOODS.map(m => (
-              <button
-                key={m.value}
-                onClick={() => set('mood', m.value)}
-                style={{
-                  flex: '1 1 calc(25% - 8px)',
-                  minWidth: '70px',
-                  padding: '14px 8px',
-                  borderRadius: '14px',
-                  border: `2px solid ${form.mood === m.value ? '#4ade80' : '#2d5040'}`,
-                  background: form.mood === m.value ? '#1e4d2e' : '#1a2e22',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '6px',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <span style={{ fontSize: '28px', lineHeight: 1 }}>{m.emoji}</span>
-                <span style={{ fontSize: '12px', color: form.mood === m.value ? '#4ade80' : '#6b9e7e', fontWeight: 500 }}>
-                  {m.label}
-                </span>
-              </button>
-            ))}
-          </div>
-        </Section>
-
-        {/* ── Section 2: Quick Poll ── */}
-        <Section delay="fade-up-2" title="How was the class pace?">
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            {POLL_OPTIONS.map(opt => (
-              <button
-                key={opt}
-                onClick={() => set('quick_poll_answer', form.quick_poll_answer === opt ? '' : opt)}
-                style={{
-                  flex: '1 1 auto',
-                  padding: '10px 16px',
-                  borderRadius: '10px',
-                  border: `2px solid ${form.quick_poll_answer === opt ? '#4ade80' : '#2d5040'}`,
-                  background: form.quick_poll_answer === opt ? '#1e4d2e' : '#1a2e22',
-                  color: form.quick_poll_answer === opt ? '#4ade80' : '#6b9e7e',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 500,
-                  transition: 'all 0.15s',
-                }}
-              >
-                {opt}
-              </button>
-            ))}
-          </div>
-        </Section>
-
-        {/* ── Section 3: Star Ratings ── */}
-        <Section delay="fade-up-3" title="Rate these aspects">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {[
-              { key: 'rating_clarity',     label: 'Clarity of explanation' },
-              { key: 'rating_engagement',  label: 'Engagement & energy'     },
-              { key: 'rating_pace',        label: 'Lesson pace'             },
-              { key: 'rating_helpfulness', label: 'Helpfulness'             },
-            ].map(r => (
-              <div key={r.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                <span style={{ fontSize: '14px', color: '#a0c8b0', minWidth: '160px' }}>{r.label}</span>
-                <StarRating
-                  value={form[r.key]}
-                  onChange={v => set(r.key, v)}
-                />
-              </div>
-            ))}
-          </div>
-        </Section>
-
-        {/* ── Section 4: Open Feedback ── */}
-        <Section delay="fade-up-4" title="Any other thoughts?">
-          <textarea
-            value={form.feedback_text}
-            onChange={e => set('feedback_text', e.target.value)}
-            placeholder="Write anything else you want to share…"
-            rows={3}
-            style={inputStyle}
-          />
-        </Section>
-
-        {/* ── Section 5: One Thing ── */}
-        <Section delay="fade-up-5" title="One thing to improve" required badge="Required">
-          <textarea
-            value={form.one_thing_to_improve}
-            onChange={e => set('one_thing_to_improve', e.target.value)}
-            placeholder="The one thing that would make the class better…"
-            rows={3}
-            style={{ ...inputStyle, borderColor: '#4ade8040' }}
-          />
-        </Section>
-
-        {/* ── Section 6: Anonymous Q&A ── */}
-        <Section delay="fade-up-6" title="Ask a question anonymously">
-          <textarea
-            value={form.question_text}
-            onChange={e => set('question_text', e.target.value)}
-            placeholder="A question you were too shy to ask in class… (optional)"
-            rows={2}
-            style={inputStyle}
-          />
-          <p style={{ fontSize: '12px', color: '#6b9e7e', marginTop: '6px' }}>
-            The teacher will answer publicly, but your name stays hidden.
-          </p>
-        </Section>
-
-        {/* Submit */}
-        <div style={{ marginTop: '8px', marginBottom: '40px' }}>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            style={{
-              width: '100%',
-              padding: '15px',
-              borderRadius: '14px',
-              border: 'none',
-              background: submitting ? '#2d5040' : '#4ade80',
-              color: submitting ? '#6b9e7e' : '#0e1a12',
-              fontFamily: 'Syne, sans-serif',
-              fontWeight: 700,
-              fontSize: '16px',
-              cursor: submitting ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s',
-            }}
-          >
-            {submitting ? 'Submitting…' : 'Submit Feedback'}
-          </button>
-          <p style={{ textAlign: 'center', fontSize: '12px', color: '#4b7a5e', marginTop: '10px' }}>
-            Your name, device, and IP address are never stored.
-          </p>
-        </div>
+  if (notFound) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="text-5xl mb-4">🪣</div>
+        <p className="font-display text-xl text-white">Teacher not found</p>
       </div>
     </div>
   )
-}
 
-// Small helper wrapper for form sections
-function Section({ title, children, delay = 'fade-up', required, badge }) {
-  return (
-    <div className={delay} style={{
-      background: '#1a2e22',
-      border: '1px solid #2d5040',
-      borderRadius: '16px',
-      padding: '20px',
-      marginBottom: '16px',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-        <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', color: '#e8f5ee', margin: 0 }}>
-          {title}
-        </h3>
-        {required && (
-          <span style={{
-            fontSize: '11px',
-            padding: '2px 8px',
-            borderRadius: '6px',
-            background: '#1e4d2e',
-            color: '#4ade80',
-            border: '1px solid #4ade8040',
-          }}>
-            {badge || 'Required'}
-          </span>
+  if (!teacher || !settings) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-chalk-muted animate-pulse font-display">Loading...</p>
+    </div>
+  )
+
+  if (step === 2) return (
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="text-center max-w-sm">
+        <div className="text-6xl mb-6">✅</div>
+        <h2 className="font-display text-3xl font-bold text-white mb-3">
+          Feedback sent!
+        </h2>
+        <p className="text-chalk-muted text-sm mb-8">
+          Your response is completely anonymous.
+        </p>
+        {settings.show_qa && (
+          <Link
+            to={`/f/${slug}/qa`}
+            className="inline-block px-6 py-3 rounded-xl text-sm font-display font-semibold"
+            style={{ background: '#1a2e22', border: '1px solid #2d5040', color: '#e8f5ee' }}>
+            View answered questions →
+          </Link>
         )}
       </div>
-      {children}
+    </div>
+  )
+
+  return (
+    <div className="min-h-screen py-12 px-4" style={{ background: '#111c16' }}>
+      <div className="max-w-xl mx-auto">
+
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 mb-1">
+            <span>🍀</span>
+            <span className="font-display text-sm font-semibold text-chalk-muted tracking-widest uppercase">
+              ChalkBack
+            </span>
+          </div>
+          <h1 className="font-display text-3xl font-bold text-white mt-2">
+            Feedback for {teacher.name}
+          </h1>
+          {teacher.subject && (
+            <p className="text-chalk-muted text-sm mt-1">{teacher.subject}</p>
+          )}
+          <div
+            className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs"
+            style={{ background: '#1a2e22', border: '1px solid #2d5040', color: '#6b9e7e' }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: '#4ade80', display: 'inline-block'
+            }}></span>
+            100% anonymous — your identity is never stored
+          </div>
+        </div>
+
+        <form onSubmit={submit} className="space-y-6">
+
+          {settings.show_mood && (
+            <div className="rounded-2xl p-6"
+              style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
+              <h3 className="font-display font-semibold text-white mb-4">
+                How do you feel about this class overall?
+              </h3>
+              <div className="grid grid-cols-4 gap-3">
+                {MOODS.map(m => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => setMood(m.value)}
+                    className="flex flex-col items-center gap-2 py-4 rounded-xl transition-all"
+                    style={{
+                      background: mood === m.value ? '#0f3d24' : '#111c16',
+                      border: `2px solid ${mood === m.value ? '#4ade80' : '#2d5040'}`,
+                    }}>
+                    <span style={{ fontSize: 28 }}>{m.emoji}</span>
+                    <span className="text-xs text-chalk-muted">{m.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {settings.show_poll && (
+            <div className="rounded-2xl p-6"
+              style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
+              <h3 className="font-display font-semibold text-white mb-1">
+                How was the pace of the class?
+              </h3>
+              <p className="text-chalk-muted text-xs mb-4">Quick poll — one tap</p>
+              <div className="flex gap-3 flex-wrap">
+                {POLL_OPTIONS.map(opt => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setPollAnswer(opt)}
+                    className="px-5 py-2 rounded-full text-sm font-display transition-all"
+                    style={{
+                      background: pollAnswer === opt ? '#f4c430' : '#111c16',
+                      color: pollAnswer === opt ? '#111c16' : '#e8f5ee',
+                      border: `1px solid ${pollAnswer === opt ? '#f4c430' : '#2d5040'}`,
+                      fontWeight: pollAnswer === opt ? 600 : 400,
+                    }}>
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {settings.show_ratings && settings.rating_fields?.length > 0 && (
+            <div className="rounded-2xl p-6"
+              style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
+              <h3 className="font-display font-semibold text-white mb-4">
+                Rate the teaching
+              </h3>
+              <div className="grid grid-cols-2 gap-5">
+                {settings.rating_fields.map(field => (
+                  <StarRating
+                    key={field}
+                    label={field}
+                    value={ratings[field] || 0}
+                    onChange={v => setRating(field, v)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {settings.show_feedback_text && (
+            <div className="rounded-2xl p-6"
+              style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
+              <h3 className="font-display font-semibold text-white mb-1">
+                Any thoughts you want to share?
+              </h3>
+              <p className="text-chalk-muted text-xs mb-3">
+                Optional — completely anonymous
+              </p>
+              <textarea
+                rows={4}
+                value={feedbackText}
+                onChange={e => setFeedbackText(e.target.value)}
+                placeholder="What went well? What could be better? Anything else..."
+                className="w-full px-4 py-3 rounded-xl text-chalk-text text-sm outline-none resize-none focus:ring-2 focus:ring-green-500"
+                style={{ background: '#111c16', border: '1px solid #2d5040', color: '#e8f5ee' }}
+              />
+            </div>
+          )}
+
+          {settings.show_one_thing && (
+            <div className="rounded-2xl p-6"
+              style={{ background: '#1a2e22', border: '2px solid #2d5040' }}>
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-display font-semibold text-white">
+                  One thing to improve
+                </h3>
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full"
+                  style={{
+                    background: '#f4c43022',
+                    color: '#f4c430',
+                    border: '1px solid #f4c43044'
+                  }}>
+                  Required
+                </span>
+              </div>
+              <p className="text-chalk-muted text-xs mb-3">
+                Be honest — this is the most valuable feedback
+              </p>
+              <textarea
+                rows={3}
+                value={oneThing}
+                onChange={e => setOneThing(e.target.value)}
+                placeholder="If you could change one thing about how this class is taught..."
+                className="w-full px-4 py-3 rounded-xl text-chalk-text text-sm outline-none resize-none focus:ring-2 focus:ring-yellow-400"
+                style={{ background: '#111c16', border: '1px solid #2d5040', color: '#e8f5ee'  }}
+                required
+              />
+            </div>
+          )}
+
+          {settings.show_qa && (
+            <div className="rounded-2xl p-6"
+              style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
+              <h3 className="font-display font-semibold text-white mb-1">
+                Ask a question anonymously
+              </h3>
+              <p className="text-chalk-muted text-xs mb-3">
+                Too shy to ask in class? The teacher will answer publicly — your name stays hidden.
+              </p>
+              <textarea
+                rows={3}
+                value={questionText}
+                onChange={e => setQuestionText(e.target.value)}
+                placeholder="Something you didn't understand, or wanted to ask..."
+                className="w-full px-4 py-3 rounded-xl text-chalk-text text-sm outline-none resize-none focus:ring-2 focus:ring-green-500"
+                style={{ background: '#111c16', border: '1px solid #2d5040' }}
+              />
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-4 rounded-xl font-display font-bold text-base transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
+            style={{ background: '#4ade80', color: '#111c16' }}>
+            {loading ? 'Submitting...' : 'Submit Feedback Anonymously →'}
+          </button>
+
+          <p className="text-center text-chalk-muted text-xs pb-6">
+            Your name, device, and IP address are never stored.
+          </p>
+
+        </form>
+      </div>
     </div>
   )
 }
