@@ -55,3 +55,119 @@ input, textarea, button {
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
+
+/* 🌿 Premium UI Theme */
+
+:root {
+  --bg-main: #0b1410;
+  --bg-card: rgba(26, 46, 34, 0.7);
+  --border: rgba(74, 222, 128, 0.15);
+  --text-main: #e8f5ee;
+  --text-muted: #6b9e7e;
+  --accent: #4ade80;
+}
+
+.glass-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+
+.glow {
+  box-shadow: 0 0 20px rgba(74, 222, 128, 0.15);
+}
+
+.btn-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(74, 222, 128, 0.2);
+}
+/* ✨ Animations */
+
+.fade-up {
+  animation: fadeUp 0.5s ease forwards;
+}
+
+.fade-up-1 { animation: fadeUp 0.6s ease forwards; }
+.fade-up-2 { animation: fadeUp 0.7s ease forwards; }
+.fade-up-3 { animation: fadeUp 0.8s ease forwards; }
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hover lift */
+.hover-lift:hover {
+  transform: translateY(-4px) scale(1.01);
+}
+
+/* Shimmer loading */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.05) 25%,
+    rgba(255,255,255,0.15) 50%,
+    rgba(255,255,255,0.05) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* 🌈 Animated border */
+
+.gradient-border {
+  position: relative;
+  border-radius: 18px;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 18px;
+  background: linear-gradient(
+    120deg,
+    #4ade80,
+    #22c55e,
+    #4ade80
+  );
+  z-index: -1;
+  filter: blur(8px);
+  opacity: 0.6;
+  animation: borderMove 4s linear infinite;
+}
+
+@keyframes borderMove {
+  0% { background-position: 0% }
+  100% { background-position: 200% }
+}
+
+/* 🌿 Floating glow */
+
+.bg-glow {
+  position: relative;
+}
+
+.bg-glow::after {
+  content: '';
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(74,222,128,0.15), transparent);
+  top: -100px;
+  left: -100px;
+  filter: blur(60px);
+  z-index: 0;
+}
