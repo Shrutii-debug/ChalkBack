@@ -40,14 +40,15 @@ export default function Login() {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '24px',
-      background: '#0e1a12',
-    }}>
+<div style={{
+  minHeight: '100vh',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '16px',   // 👈 reduced
+  background: '#0e1a12',
+  overflowX: 'hidden', // 👈 VERY IMPORTANT
+}}>
       <div style={{ width: '100%', maxWidth: '420px' }}>
 
         {/* Logo */}
@@ -61,7 +62,7 @@ export default function Login() {
             <span style={{ fontSize: '28px' }}>🖊️</span>
             <h1 style={{
               fontFamily: 'Syne, sans-serif',
-              fontSize: '36px',
+              fontSize: 'clamp(28px, 6vw, 36px)',
               fontWeight: 800,
               color: '#4ade80',
               margin: 0,
@@ -80,7 +81,7 @@ export default function Login() {
           background: '#1a2e22',
           border: '1px solid #2d5040',
           borderRadius: '20px',
-          padding: '32px',
+          padding: 'clamp(20px, 5vw, 32px)',
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 

@@ -151,34 +151,38 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen" style={{ background: '#111c16' }}>
+<div className="sticky top-0 z-10 w-full px-6 py-4 flex items-center"
+  style={{ background: '#111c16', borderBottom: '1px solid #2d5040' }}>
 
-      {/* Topbar */}
-      <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between"
-        style={{ background: '#111c16', borderBottom: '1px solid #2d5040' }}>
-        <div className="flex items-center gap-3">
-          <span>🍀</span>
-          <span className="font-display font-bold text-white text-lg">ChalkBack</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={copyLink}
-            className="px-4 py-2 rounded-lg text-sm font-display transition-all hover:opacity-80"
-            style={{ background: '#1a2e22', border: '1px solid #2d5040', color: '#4ade80' }}>
-            📋 Copy student link
-          </button>
-          <button
-            onClick={logout}
-            className="text-chalk-muted text-sm hover:text-white transition-colors">
-            Sign out
-          </button>
-        </div>
-      </div>
+  {/* LEFT */}
+  <div className="flex items-center gap-2 whitespace-nowrap">
+    <span>🍀</span>
+    <span className="font-display font-bold text-white text-lg">ChalkBack</span>
+  </div>
 
-      <div className="max-w-5xl mx-auto px-6 py-8">
+  {/* RIGHT */}
+  <div className="ml-auto flex items-center gap-2 whitespace-nowrap">
+    <button
+      onClick={copyLink}
+      className="px-4 py-2 rounded-lg text-sm font-display"
+      style={{ background: '#1a2e22', border: '1px solid #2d5040', color: '#4ade80' }}>
+      📋 Copy student link
+    </button>
+
+    <button
+      onClick={logout}
+      className="text-chalk-muted text-sm hover:text-white">
+      Sign out
+    </button>
+  </div>
+
+</div>
+
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
 
         {/* Welcome */}
         <div className="mb-8">
-          <h1 className="font-display text-3xl font-bold text-white">
+          <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-bold text-white whitespace-nowrap">
             Hey, {teacher.name} 👋
           </h1>
           <p className="text-chalk-muted text-sm mt-1">
@@ -189,7 +193,7 @@ export default function Dashboard() {
         </div>
 
         {/* Stat cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-8">
           {[
             { label: 'Total Responses', value: summary.total_responses },
             { label: 'Rating Fields', value: settings.rating_fields?.length || 0 },
@@ -205,13 +209,13 @@ export default function Dashboard() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 p-1 rounded-xl w-fit"
+        <div className="flex flex-wrap gap-2 mb-6 p-1 rounded-xl w-fit"
           style={{ background: '#1a2e22' }}>
           {TABS.map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className="px-5 py-2 rounded-lg text-sm font-display transition-all"
+              className="px-3 sm:px-5 py-2 rounded-lg text-xs sm:text-sm font-display transition-all"
               style={{
                 background: tab === t ? '#111c16' : 'transparent',
                 color: tab === t ? '#ffffff' : '#6b9e7e',
@@ -232,7 +236,7 @@ export default function Dashboard() {
         {tab === 'Overview' && (
           <div className="space-y-6">
 
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
               <div className="rounded-2xl p-6"
                 style={{ background: '#1a2e22', border: '1px solid #2d5040' }}>
                 <h2 className="font-display font-semibold text-white mb-4">Mood meter</h2>
@@ -360,7 +364,7 @@ export default function Dashboard() {
                   </div>
 
                   {Object.keys(ratingsObj).length > 0 && (
-                    <div className="grid grid-cols-4 gap-2 mb-3">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
                       {Object.entries(ratingsObj).map(([field, val]) => (
                         <div key={field} className="text-center p-2 rounded-lg"
                           style={{ background: '#111c16' }}>

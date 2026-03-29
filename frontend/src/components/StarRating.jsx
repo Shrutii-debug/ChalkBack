@@ -4,7 +4,7 @@ export default function StarRating({ value, onChange, label }) {
       {label && (
         <span style={{ fontSize: '13px', color: '#6b9e7e' }}>{label}</span>
       )}
-      <div style={{ display: 'flex', gap: '6px' }}>
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
         {[1, 2, 3, 4, 5].map(star => (
           <button
             key={star}

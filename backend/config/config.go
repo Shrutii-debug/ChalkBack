@@ -29,7 +29,7 @@ func InitDB() {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 
-	DB.Exec("DROP TABLE IF EXISTS feedbacks")
+	//DB.Exec("DROP TABLE IF EXISTS feedbacks")
 
 	err = DB.AutoMigrate(
 		&models.Teacher{},

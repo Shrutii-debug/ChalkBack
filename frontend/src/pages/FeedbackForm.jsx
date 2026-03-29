@@ -113,7 +113,7 @@ export default function FeedbackForm() {
   )
 
   return (
-    <div className="min-h-screen py-12 px-4" style={{ background: '#111c16' }}>
+    <div className="min-h-screen py-12 px-4 flex justify-center" style={{ background: '#111c16' }}>
       <div className="max-w-xl mx-auto">
 
         <div className="text-center mb-10">
@@ -123,7 +123,7 @@ export default function FeedbackForm() {
               ChalkBack
             </span>
           </div>
-          <h1 className="font-display text-3xl font-bold text-white mt-2">
+          <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-bold text-white mt-2">
             Feedback for {teacher.name}
           </h1>
           {teacher.subject && (
@@ -148,7 +148,7 @@ export default function FeedbackForm() {
               <h3 className="font-display font-semibold text-white mb-4">
                 How do you feel about this class overall?
               </h3>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {MOODS.map(m => (
                   <button
                     key={m.value}
@@ -200,7 +200,7 @@ export default function FeedbackForm() {
               <h3 className="font-display font-semibold text-white mb-4">
                 Rate the teaching
               </h3>
-              <div className="grid grid-cols-2 gap-5">
+              <div className="grid grid-cols-2 gap-3 sm:gap-5">
                 {settings.rating_fields.map(field => (
                   <StarRating
                     key={field}
