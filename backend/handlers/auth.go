@@ -43,7 +43,7 @@ func setAuthCookie(w http.ResponseWriter, token string) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   os.Getenv("ENV") == "production",
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteNoneMode,
 		MaxAge:   7 * 24 * 60 * 60,
 	})
 }
