@@ -42,7 +42,7 @@ export default function FeedbackForm() {
   const submit = async e => {
     e.preventDefault()
     if (settings.show_mood && !mood) return toast.error('Please pick a mood')
-    if (settings.show_one_thing && !oneThing.trim()) return toast.error('"One thing to improve" is required')
+    
     setLoading(true)
     try {
       await api.post('/feedback', {
@@ -493,7 +493,7 @@ export default function FeedbackForm() {
               <div className="fb-card fb-card-gold">
                 <p className="fb-card-title">
                   One thing to improve
-                  <span className="req-badge">Required</span>
+                  
                 </p>
                 <p className="fb-card-sub">Be honest — this is the most valuable feedback</p>
                 <textarea
@@ -502,7 +502,7 @@ export default function FeedbackForm() {
                   onChange={e => setOneThing(e.target.value)}
                   placeholder="If you could change one thing about how this class is taught..."
                   className="fb-textarea"
-                  required
+                  
                 />
               </div>
             )}
