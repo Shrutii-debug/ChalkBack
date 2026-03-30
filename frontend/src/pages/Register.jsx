@@ -3,8 +3,18 @@ import { useNavigate, Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../api'
 
+// Password must have: 8+ chars, uppercase, lowercase, number, special char
+function validatePassword(p) {
+  if (p.length < 8) return 'Password must be at least 8 characters'
+  if (!/[A-Z]/.test(p)) return 'Password must contain at least one uppercase letter'
+  if (!/[a-z]/.test(p)) return 'Password must contain at least one lowercase letter'
+  if (!/[0-9]/.test(p)) return 'Password must contain at least one number'
+  if (!/[^A-Za-z0-9]/.test(p)) return 'Password must contain at least one special character'
+  return ''
+}
+
 export default function Register() {
-  const [form, setForm]     = useState({ name: '', email: '', password: '', subject: '' })
+  const [form, setForm] = useState({ name: '', email: '', password: '', subject: '' })
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
@@ -15,6 +25,14 @@ export default function Register() {
       toast.error('Name, email and password are required')
       return
     }
+
+    // Validate password on frontend before sending to backend
+    const pwErr = validatePassword(form.password)
+    if (pwErr) {
+      toast.error(pwErr)
+      return
+    }
+
     setLoading(true)
     try {
       await api.post('/auth/register', form)
@@ -36,6 +54,7 @@ export default function Register() {
     color: '#e8f5ee',
     outline: 'none',
     fontSize: '15px',
+    boxSizing: 'border-box',
   }
 
   const fields = [
@@ -95,6 +114,13 @@ export default function Register() {
                 />
               </div>
             ))}
+
+            {/* Password hint shown while typing */}
+            {form.password && validatePassword(form.password) && (
+              <p style={{ margin: 0, fontSize: '12px', color: '#f87171' }}>
+                ⚠️ {validatePassword(form.password)}
+              </p>
+            )}
 
             <button
               onClick={handleSubmit}

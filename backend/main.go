@@ -35,6 +35,8 @@ func main() {
 	r.Post("/api/auth/register", handlers.Register)
 	r.Post("/api/auth/login", handlers.Login)
 	r.Post("/api/auth/logout", handlers.Logout)
+	r.Post("/api/auth/forgot-password", handlers.ForgotPassword)
+	r.Post("/api/auth/reset-password", handlers.ResetPassword)		
 
 	r.Get("/api/form/{slug}", handlers.GetFormInfo)
 	r.Get("/api/form/{slug}/settings", handlers.GetPublicSettings)
@@ -53,6 +55,7 @@ func main() {
 		r.Post("/api/dashboard/qa/{id}/answer", handlers.AnswerQuestion)
 		r.Get("/api/dashboard/settings", handlers.GetSettings)
 		r.Post("/api/dashboard/settings", handlers.SaveSettings)
+		r.Post("/api/dashboard/change-password", handlers.ChangePassword)
 	})
 
 	port := os.Getenv("PORT")

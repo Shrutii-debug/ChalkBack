@@ -42,7 +42,6 @@ export default function Login() {
           font-family: 'Instrument Sans', sans-serif;
         }
 
-        /* Animated radial glow blobs */
         .login-root::before {
           content: '';
           position: fixed;
@@ -53,7 +52,6 @@ export default function Login() {
           pointer-events: none;
         }
 
-        /* Subtle grain overlay */
         .login-root::after {
           content: '';
           position: fixed;
@@ -76,10 +74,7 @@ export default function Login() {
           to   { opacity: 1; transform: translateY(0); }
         }
 
-        .login-logo {
-          text-align: center;
-          margin-bottom: 36px;
-        }
+        .login-logo { text-align: center; margin-bottom: 36px; }
 
         .login-logo-badge {
           display: inline-flex;
@@ -124,11 +119,7 @@ export default function Login() {
           letter-spacing: -1px;
         }
 
-        .login-subtitle {
-          font-size: 14px;
-          color: #4d7a5e;
-          margin: 0;
-        }
+        .login-subtitle { font-size: 14px; color: #4d7a5e; margin: 0; }
 
         .login-form-box {
           background: rgba(20, 38, 26, 0.8);
@@ -139,12 +130,7 @@ export default function Login() {
           box-shadow: 0 0 0 1px rgba(74,222,128,0.03), 0 32px 64px rgba(0,0,0,0.4);
         }
 
-        .field-group {
-          display: flex;
-          flex-direction: column;
-          gap: 14px;
-          margin-bottom: 20px;
-        }
+        .field-group { display: flex; flex-direction: column; gap: 14px; margin-bottom: 8px; }
 
         .field-label {
           display: block;
@@ -176,6 +162,18 @@ export default function Login() {
         }
 
         .field-input::placeholder { color: #2d5040; }
+
+        .forgot-link {
+          display: block;
+          text-align: right;
+          font-size: 12px;
+          color: #4ade80;
+          text-decoration: none;
+          margin-bottom: 16px;
+          opacity: 0.8;
+          transition: opacity 0.2s;
+        }
+        .forgot-link:hover { opacity: 1; }
 
         .login-btn {
           width: 100%;
@@ -264,6 +262,11 @@ export default function Login() {
                 />
               </div>
             </div>
+
+            {/* Forgot password link */}
+            <Link to="/forgot-password" className="forgot-link">
+              Forgot password?
+            </Link>
 
             <button onClick={handleSubmit} disabled={loading} className="login-btn">
               {loading ? 'Signing in…' : 'Sign In →'}

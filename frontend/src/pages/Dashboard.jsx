@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 import api from '../api'
 import WordCloud from '../components/WordCloud'
 import MoodMeter from '../components/MoodMeter'
+import ChangePassword from './ChangePassword.jsx'
 
 const TABS = ['Overview', 'Feedback', 'Q&A', 'Settings']
 
@@ -648,6 +649,7 @@ export default function Dashboard() {
                 </div>
               )}
               <button onClick={saveSettings} className="settings-save-btn">Save Settings</button>
+              <ChangePassword /> 
             </div>
           )}
 

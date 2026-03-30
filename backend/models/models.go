@@ -3,13 +3,15 @@ package models
 import "time"
 
 type Teacher struct {
-	ID           uint      `gorm:"primaryKey" json:"id"`
-	Name         string    `gorm:"not null" json:"name"`
-	Email        string    `gorm:"uniqueIndex;not null" json:"email"`
-	PasswordHash string    `gorm:"not null" json:"-"`
-	Slug         string    `gorm:"uniqueIndex;not null" json:"slug"`
-	Subject      string    `json:"subject"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID               uint      `gorm:"primaryKey" json:"id"`
+	Name             string    `gorm:"not null" json:"name"`
+	Email            string    `gorm:"uniqueIndex;not null" json:"email"`
+	PasswordHash     string    `gorm:"not null" json:"-"`
+	Slug             string    `gorm:"uniqueIndex;not null" json:"slug"`
+	Subject          string    `json:"subject"`
+	ResetToken       string    `gorm:"default:''" json:"-"`           // token for forgot password
+	ResetTokenExpiry time.Time `json:"-"`                             // when the token expires
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 type Feedback struct {

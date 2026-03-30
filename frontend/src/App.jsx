@@ -5,6 +5,8 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import QAPublic from './pages/QAPublic'
 import PrivateRoute from './components/PrivateRoute'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 
 export default function App() {
   return (
@@ -13,6 +15,8 @@ export default function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/f/:slug" element={<FeedbackForm />} />
         <Route path="/f/:slug/qa" element={<QAPublic />} />
         <Route
