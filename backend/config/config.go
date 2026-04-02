@@ -36,6 +36,8 @@ func InitDB() {
 		&models.Feedback{},
 		&models.Question{},
 		&models.TeacherSettings{},
+		&models.IPBanList{},
+		&models.OTPAttempt{},
 	)
 	if err != nil {
 		log.Fatalf("AutoMigrate failed: %v", err)

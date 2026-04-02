@@ -22,8 +22,12 @@ func main() {
 
 	r := chi.NewRouter()
 
+	
+
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+
+	r.Use(authmw.IPBanMiddleware)
 
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{os.Getenv("FRONTEND_URL")},
@@ -38,11 +42,11 @@ func main() {
 	r.Post("/api/auth/forgot-password", handlers.ForgotPassword)
 	r.Post("/api/auth/reset-password", handlers.ResetPassword)		
 
-	r.Get("/api/form/{slug}", handlers.GetFormInfo)
-	r.Get("/api/form/{slug}/settings", handlers.GetPublicSettings)
+	r.Get("/api/form/{token}", handlers.GetFormInfo)
+	r.Get("/api/form/{token}/settings", handlers.GetPublicSettings)
 	r.Post("/api/feedback", handlers.SubmitFeedback)
 	r.Post("/api/questions", handlers.SubmitQuestion)
-	r.Get("/api/qa/{slug}", handlers.GetPublicQA)
+	r.Get("/api/qa/{token}", handlers.GetPublicQA)
 
 	r.Group(func(r chi.Router) {
 		r.Use(authmw.RequireAuth)
@@ -57,6 +61,15 @@ func main() {
 		r.Post("/api/dashboard/settings", handlers.SaveSettings)
 		r.Post("/api/dashboard/change-password", handlers.ChangePassword)
 	})
+
+	//2FA routes
+
+	r.Post("/api/auth/setup-2fa", handlers.Setup2FA)
+	r.Post("/api/auth/verify-2fa", handlers.Verify2FA)
+	r.Post("/api/auth/disable-2fa", handlers.Disable2FA)
+
+	//regenerating form token
+	r.Post("/api/dashboard/regenerate-form-token", handlers.RegenerateFormToken)
 
 	port := os.Getenv("PORT")
 	if port == "" {

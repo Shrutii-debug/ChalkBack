@@ -90,10 +90,10 @@ func SaveSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetPublicSettings(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	token := chi.URLParam(r, "token")
 
 	var teacher models.Teacher
-	if err := config.DB.Where("slug = ?", slug).First(&teacher).Error; err != nil {
+	if err := config.DB.Where("form_token = ?", token).First(&teacher).Error; err != nil {
 		jsonError(w, "teacher not found", http.StatusNotFound)
 		return
 	}

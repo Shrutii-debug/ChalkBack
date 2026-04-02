@@ -7,10 +7,18 @@ type Teacher struct {
 	Name             string    `gorm:"not null" json:"name"`
 	Email            string    `gorm:"uniqueIndex;not null" json:"email"`
 	PasswordHash     string    `gorm:"not null" json:"-"`
-	Slug             string    `gorm:"uniqueIndex;not null" json:"slug"`
+	Slug             string    `gorm:"uniqueIndex;not null" json:"-"`
+	FormToken        string     `gorm:"uniqueIndex;not null;default:''" json:"-"` //random token instead of slug
 	Subject          string    `json:"subject"`
 	ResetToken       string    `gorm:"default:''" json:"-"`           // token for forgot password
 	ResetTokenExpiry time.Time `json:"-"`                             // when the token expires
+	TwoFASecret      string    	`gorm:"default:''" json:"-"` //base 32 TOTP secret
+	TwoFAEnabled     bool        `gorm:"default:false" json"two_fa_enabled"`
+
+	//login lockout
+	LoginAttempts   int         `gorm:"default:0" json:"-"`
+	LockedUntil     time.Time    `json:"-"`
+
 	CreatedAt        time.Time `json:"created_at"`
 }
 
@@ -46,4 +54,18 @@ type TeacherSettings struct {
 	RatingFields     string    `gorm:"default:'Clarity,Engagement,Pace,Helpfulness'" json:"rating_fields"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+type IPBanList struct{
+	ID     uint   `gorm:"primaryKey" json:"id"`
+	IP     string  `gorm:"uniqueIndex;not null" json:"ip"`
+	BannedAt  time.Time  `json:"banned_at"`
+	BanExpiry  time.Time   `json:"ban_expiry"`
+	Reason    string    `json:"reason"`
+}
+
+type OTPAttempt struct{
+	ID     uint    `gorm:"primaryKey" json:"id"`
+	IP     string   `gorm:"index;not null" json:"ip"`
+	AttemptAt   time.Time  `json:"attempt_at"`
 }

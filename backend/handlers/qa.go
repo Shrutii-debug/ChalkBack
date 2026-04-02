@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	
 	"net/http"
 	"strconv"
 	"strings"
@@ -83,7 +84,7 @@ func isDuplicateQuestion(newQ string, existing []models.Question) bool {
 
 func SubmitQuestion(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		TeacherSlug  string `json:"teacher_slug"`
+		TeacherSlug  string `json:"form_token"`
 		QuestionText string `json:"question_text"`
 	}
 
@@ -94,6 +95,11 @@ func SubmitQuestion(w http.ResponseWriter, r *http.Request) {
 
 	if req.QuestionText == "" {
 		jsonError(w, "question_text is required", http.StatusBadRequest)
+		return
+	}
+
+	if msg := validateTextContent(req.QuestionText, "question"); msg != ""{
+		jsonError(w, msg, http.StatusBadRequest)
 		return
 	}
 
@@ -129,10 +135,10 @@ func SubmitQuestion(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetPublicQA(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
+	token := chi.URLParam(r, "token")
 
 	var teacher models.Teacher
-	if err := config.DB.Where("slug = ?", slug).First(&teacher).Error; err != nil {
+	if err := config.DB.Where("form_token = ?", token).First(&teacher).Error; err != nil {
 		jsonError(w, "teacher not found", http.StatusNotFound)
 		return
 	}
