@@ -8,7 +8,7 @@ type Teacher struct {
 	Email            string    `gorm:"uniqueIndex;not null" json:"email"`
 	PasswordHash     string    `gorm:"not null" json:"-"`
 	Slug             string    `gorm:"uniqueIndex;not null" json:"-"`
-	FormToken        string     `gorm:"default:''" json:"-"` //random token instead of slug
+	FormToken        string     `gorm:"uniqueIndex;not null;default:''" json:"-"` //random token instead of slug
 	Subject          string    `json:"subject"`
 	ResetToken       string    `gorm:"default:''" json:"-"`           // token for forgot password
 	ResetTokenExpiry time.Time `json:"-"`                             // when the token expires
