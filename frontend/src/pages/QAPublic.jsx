@@ -3,15 +3,15 @@ import { useParams, Link } from 'react-router-dom'
 import api from '../api'
 
 export default function QAPublic() {
-  const { slug } = useParams()
+  const { token } = useParams()
   const [questions, setQuestions] = useState([])
   const [loading, setLoading]     = useState(true)
 
   useEffect(() => {
-    api.get(`/qa/${slug}`)
+    api.get(`/qa/${token}`)
       .then(r => { setQuestions(r.data || []); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [slug])
+  }, [token])
 
   return (
     <div style={{ minHeight: '100vh', background: '#0e1a12', padding: '24px' }}>
@@ -19,7 +19,7 @@ export default function QAPublic() {
 
         {/* Header */}
         <div className="fade-up" style={{ marginBottom: '28px', paddingTop: '16px' }}>
-          <Link to={`/f/${slug}`} style={{
+          <Link to={`/f/${token}`} style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',

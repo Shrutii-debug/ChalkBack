@@ -17,8 +17,11 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/f/:slug" element={<FeedbackForm />} />
-        <Route path="/f/:slug/qa" element={<QAPublic />} />
+
+        
+        <Route path="/f/:token" element={<FeedbackForm />} />
+        <Route path="/f/:token/qa" element={<QAPublic />} />
+
         <Route
           path="/dashboard"
           element={

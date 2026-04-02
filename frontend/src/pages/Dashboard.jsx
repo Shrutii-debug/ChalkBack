@@ -8,12 +8,12 @@ import toast from 'react-hot-toast'
 import api from '../api'
 import WordCloud from '../components/WordCloud'
 import MoodMeter from '../components/MoodMeter'
-import ChangePassword from './ChangePassword.jsx'
 
 const TABS = ['Overview', 'Feedback', 'Q&A', 'Settings']
 
 export default function Dashboard() {
   const [teacher, setTeacher] = useState(null)
+  const [formToken, setFormToken] = useState('')
   const [summary, setSummary] = useState(null)
   const [wordcloud, setWordcloud] = useState([])
   const [feedbacks, setFeedbacks] = useState([])
@@ -22,6 +22,14 @@ export default function Dashboard() {
   const [settingsForm, setSettingsForm] = useState(null)
   const [tab, setTab] = useState('Overview')
   const [answerDraft, setAnswerDraft] = useState({})
+
+  // 2FA state
+  const [twoFASetup, setTwoFASetup] = useState(null) // { secret, qr_url }
+  const [twoFAOtp, setTwoFAOtp] = useState('')
+  const [twoFALoading, setTwoFALoading] = useState(false)
+  const [disableOtp, setDisableOtp] = useState('')
+  const [disablePassword, setDisablePassword] = useState('')
+
   const navigate = useNavigate()
 
   const fetchAll = useCallback(async () => {
@@ -31,7 +39,9 @@ export default function Dashboard() {
         api.get('/dashboard/wordcloud'), api.get('/dashboard/feedback'),
         api.get('/dashboard/qa'), api.get('/dashboard/settings'),
       ])
-      setTeacher(me.data); setSummary(sum.data)
+      setTeacher(me.data)
+      setFormToken(me.data.form_token || '')
+      setSummary(sum.data)
       setWordcloud(wc.data || []); setFeedbacks(fb.data || [])
       setQuestions(qa.data || []); setSettings(set.data)
     } catch { navigate('/login') }
@@ -67,9 +77,20 @@ export default function Dashboard() {
     } catch { toast.error('Failed to post answer') }
   }
 
+  // Copy the public form URL — uses form_token, not slug
   const copyLink = () => {
-    navigator.clipboard.writeText(`${window.location.origin}/f/${teacher?.slug}`)
+    const url = `${window.location.origin}/f/${formToken}`
+    navigator.clipboard.writeText(url)
     toast.success('Link copied!')
+  }
+
+  const regenerateToken = async () => {
+    if (!window.confirm('This will invalidate your current student link. Continue?')) return
+    try {
+      const r = await api.post('/dashboard/regenerate-form-token')
+      setFormToken(r.data.form_token)
+      toast.success('New link generated!')
+    } catch { toast.error('Failed to regenerate link') }
   }
 
   const saveSettings = async () => {
@@ -93,6 +114,44 @@ export default function Dashboard() {
 
   const updateRatingField = (index, value) => {
     setSettingsForm(f => ({ ...f, rating_fields: f.rating_fields.map((field, i) => i === index ? value : field) }))
+  }
+
+  // 2FA handlers
+  const setup2FA = async () => {
+    setTwoFALoading(true)
+    try {
+      const r = await api.post('/auth/setup-2fa')
+      setTwoFASetup(r.data)
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to start 2FA setup')
+    } finally { setTwoFALoading(false) }
+  }
+
+  const verify2FA = async () => {
+    if (!twoFAOtp) return toast.error('Enter the OTP from your app')
+    setTwoFALoading(true)
+    try {
+      await api.post('/auth/verify-2fa', { otp_code: twoFAOtp })
+      toast.success('2FA enabled successfully!')
+      setTwoFASetup(null)
+      setTwoFAOtp('')
+      setTeacher(t => ({ ...t, two_fa_enabled: true }))
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Invalid OTP')
+    } finally { setTwoFALoading(false) }
+  }
+
+  const disable2FA = async () => {
+    if (!disablePassword || !disableOtp) return toast.error('Enter your password and OTP')
+    setTwoFALoading(true)
+    try {
+      await api.post('/auth/disable-2fa', { password: disablePassword, otp_code: disableOtp })
+      toast.success('2FA disabled')
+      setDisablePassword(''); setDisableOtp('')
+      setTeacher(t => ({ ...t, two_fa_enabled: false }))
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to disable 2FA')
+    } finally { setTwoFALoading(false) }
   }
 
   if (!teacher || !summary || !settings) return (
@@ -146,17 +205,8 @@ export default function Dashboard() {
           overflow: hidden;
         }
 
-        .db-nav-logo {
-          display: flex; align-items: center; gap: 8px; flex-shrink: 0;
-          min-width: 0;
-        }
-
-        .db-nav-logo-text {
-          font-family: 'Cabinet Grotesk', sans-serif;
-          font-weight: 800; font-size: 17px; color: #f0faf4;
-          white-space: nowrap;
-        }
-
+        .db-nav-logo { display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-width: 0; }
+        .db-nav-logo-text { font-family: 'Cabinet Grotesk', sans-serif; font-weight: 800; font-size: 17px; color: #f0faf4; white-space: nowrap; }
         .db-nav-spacer { flex: 1; min-width: 0; }
 
         .db-copy-btn {
@@ -169,163 +219,59 @@ export default function Dashboard() {
           color: #4ade80;
           font-family: 'Cabinet Grotesk', sans-serif;
           font-weight: 700; font-size: 13px;
-          cursor: pointer;
-          transition: all 0.2s;
-          white-space: nowrap;
+          cursor: pointer; transition: all 0.2s; white-space: nowrap;
         }
+        .db-copy-btn:hover { background: rgba(74,222,128,0.14); border-color: rgba(74,222,128,0.4); }
 
-        .db-copy-btn:hover {
-          background: rgba(74,222,128,0.14);
-          border-color: rgba(74,222,128,0.4);
-        }
-
-        /* Hide label by default, show on wider screens */
         .db-copy-label { display: none; }
         @media (min-width: 420px) { .db-copy-label { display: inline; } }
 
         .db-signout {
-          flex-shrink: 0;
-          background: none; border: none;
-          color: #3d6b4f; font-size: 13px;
-          cursor: pointer;
+          flex-shrink: 0; background: none; border: none;
+          color: #3d6b4f; font-size: 13px; cursor: pointer;
           font-family: 'Instrument Sans', sans-serif;
-          transition: color 0.2s; padding: 4px;
-          white-space: nowrap;
+          transition: color 0.2s; padding: 4px; white-space: nowrap;
         }
         .db-signout:hover { color: #e8f5ee; }
 
-        .db-content {
-          max-width: 900px;
-          margin: 0 auto;
-          padding: 28px 16px 60px;
-          position: relative; z-index: 1;
-        }
-
+        .db-content { max-width: 900px; margin: 0 auto; padding: 28px 16px 60px; position: relative; z-index: 1; }
         .db-welcome { margin-bottom: 28px; }
-
-        .db-welcome h1 {
-          font-family: 'Cabinet Grotesk', sans-serif;
-          font-weight: 900;
-          font-size: clamp(22px, 5vw, 34px);
-          color: #f0faf4; margin: 0 0 4px;
-          letter-spacing: -0.5px; word-break: break-word;
-        }
-
+        .db-welcome h1 { font-family: 'Cabinet Grotesk', sans-serif; font-weight: 900; font-size: clamp(22px, 5vw, 34px); color: #f0faf4; margin: 0 0 4px; letter-spacing: -0.5px; word-break: break-word; }
         .db-welcome p { font-size: 13px; color: #3d6b4f; margin: 0; }
-        .db-welcome-slug { color: #4ade80; font-size: 12px; }
+        .db-welcome-token { color: #4ade80; font-size: 11px; font-family: monospace; word-break: break-all; }
 
-        .db-stats {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 10px; margin-bottom: 24px;
-        }
-
+        .db-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 24px; }
         @media (min-width: 640px) { .db-stats { grid-template-columns: repeat(4, 1fr); } }
 
-        .db-stat {
-          background: rgba(20,38,26,0.7);
-          border: 1px solid rgba(45,80,64,0.6);
-          border-radius: 16px; padding: 16px;
-          transition: border-color 0.2s;
-          min-width: 0;
-        }
+        .db-stat { background: rgba(20,38,26,0.7); border: 1px solid rgba(45,80,64,0.6); border-radius: 16px; padding: 16px; transition: border-color 0.2s; min-width: 0; }
         .db-stat:hover { border-color: rgba(74,222,128,0.25); }
+        @media (max-width: 380px) { .db-stat { padding: 12px; } .db-stat-value { font-size: 24px !important; } }
 
-        /* Tighter padding on very small screens */
-        @media (max-width: 380px) {
-          .db-stat { padding: 12px; }
-          .db-stat-value { font-size: 24px !important; }
-        }
+        .db-stat-label { font-size: 11px; color: #3d6b4f; margin: 0 0 6px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .db-stat-value { font-family: 'Cabinet Grotesk', sans-serif; font-weight: 900; font-size: 30px; color: #f0faf4; margin: 0; line-height: 1; }
 
-        .db-stat-label {
-          font-size: 11px; color: #3d6b4f; margin: 0 0 6px;
-          font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em;
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-
-        .db-stat-value {
-          font-family: 'Cabinet Grotesk', sans-serif;
-          font-weight: 900; font-size: 30px; color: #f0faf4; margin: 0; line-height: 1;
-        }
-
-        .db-tabs {
-          display: flex; gap: 4px; margin-bottom: 24px;
-          padding: 4px;
-          background: rgba(20,38,26,0.6);
-          border: 1px solid rgba(45,80,64,0.5);
-          border-radius: 14px;
-          overflow-x: auto; scrollbar-width: none;
-        }
-
-        .db-tab {
-          flex-shrink: 0; padding: 8px 16px;
-          border-radius: 10px; border: 1px solid transparent;
-          font-family: 'Cabinet Grotesk', sans-serif;
-          font-weight: 700; font-size: 13px; cursor: pointer;
-          transition: all 0.18s; display: flex; align-items: center; gap: 6px;
-          background: transparent; color: #4d7a5e;
-        }
+        .db-tabs { display: flex; gap: 4px; margin-bottom: 24px; padding: 4px; background: rgba(20,38,26,0.6); border: 1px solid rgba(45,80,64,0.5); border-radius: 14px; overflow-x: auto; scrollbar-width: none; }
+        .db-tab { flex-shrink: 0; padding: 8px 16px; border-radius: 10px; border: 1px solid transparent; font-family: 'Cabinet Grotesk', sans-serif; font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.18s; display: flex; align-items: center; gap: 6px; background: transparent; color: #4d7a5e; }
         .db-tab:hover { color: #a8d5b5; }
-        .db-tab.active {
-          background: rgba(9,15,11,0.9);
-          border-color: rgba(74,222,128,0.2);
-          color: #f0faf4; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
+        .db-tab.active { background: rgba(9,15,11,0.9); border-color: rgba(74,222,128,0.2); color: #f0faf4; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        .db-tab-badge { padding: 1px 7px; border-radius: 100px; background: #f4c430; color: #1a1000; font-size: 11px; font-weight: 800; }
 
-        .db-tab-badge {
-          padding: 1px 7px; border-radius: 100px;
-          background: #f4c430; color: #1a1000;
-          font-size: 11px; font-weight: 800;
-        }
-
-        .db-card {
-          background: rgba(20,38,26,0.6);
-          border: 1px solid rgba(45,80,64,0.6);
-          border-radius: 20px; padding: 24px;
-          transition: border-color 0.2s;
-        }
+        .db-card { background: rgba(20,38,26,0.6); border: 1px solid rgba(45,80,64,0.6); border-radius: 20px; padding: 24px; transition: border-color 0.2s; }
         .db-card:hover { border-color: rgba(74,222,128,0.15); }
-
-        .db-card-title {
-          font-family: 'Cabinet Grotesk', sans-serif;
-          font-weight: 800; font-size: 15px; color: #e8f5ee; margin: 0 0 4px;
-        }
+        .db-card-title { font-family: 'Cabinet Grotesk', sans-serif; font-weight: 800; font-size: 15px; color: #e8f5ee; margin: 0 0 4px; }
         .db-card-sub { font-size: 12px; color: #3d6b4f; margin: 0 0 16px; }
 
         .db-grid-2 { display: grid; grid-template-columns: 1fr; gap: 12px; }
         @media (min-width: 640px) { .db-grid-2 { grid-template-columns: repeat(2, 1fr); } }
-
         .db-space { display: flex; flex-direction: column; gap: 12px; }
 
-        .fb-entry {
-          background: rgba(20,38,26,0.6);
-          border: 1px solid rgba(45,80,64,0.5);
-          border-radius: 16px; padding: 18px;
-          transition: border-color 0.2s;
-        }
+        .fb-entry { background: rgba(20,38,26,0.6); border: 1px solid rgba(45,80,64,0.5); border-radius: 16px; padding: 18px; transition: border-color 0.2s; }
         .fb-entry:hover { border-color: rgba(74,222,128,0.2); }
-
-        .fb-entry-header {
-          display: flex; align-items: center;
-          justify-content: space-between; gap: 8px;
-          margin-bottom: 12px; flex-wrap: wrap;
-        }
-
+        .fb-entry-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
         .fb-entry-date { font-size: 11px; color: #3d6b4f; flex-shrink: 0; }
-
-        .fb-poll-chip {
-          padding: 3px 10px; border-radius: 100px;
-          background: rgba(9,15,11,0.8); border: 1px solid #1e3828;
-          color: #4d7a5e; font-size: 11px; font-weight: 600;
-          font-family: 'Cabinet Grotesk', sans-serif;
-        }
-
-        .fb-ratings-grid {
-          display: grid; grid-template-columns: repeat(2, 1fr);
-          gap: 8px; margin-bottom: 10px;
-        }
+        .fb-poll-chip { padding: 3px 10px; border-radius: 100px; background: rgba(9,15,11,0.8); border: 1px solid #1e3828; color: #4d7a5e; font-size: 11px; font-weight: 600; font-family: 'Cabinet Grotesk', sans-serif; }
+        .fb-ratings-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 10px; }
         @media (min-width: 480px) { .fb-ratings-grid { grid-template-columns: repeat(4, 1fr); } }
-
         .fb-rating-chip { text-align: center; padding: 8px; border-radius: 10px; background: rgba(9,15,11,0.8); }
         .fb-rating-chip-label { font-size: 10px; color: #3d6b4f; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .fb-rating-chip-val { font-family: 'Cabinet Grotesk', sans-serif; font-weight: 800; font-size: 16px; color: #f0faf4; }
@@ -334,38 +280,17 @@ export default function Dashboard() {
         .fb-onetea-star { color: #f4c430; font-size: 13px; flex-shrink: 0; margin-top: 1px; }
         .fb-onetea-text { font-size: 13px; color: #c8b060; line-height: 1.5; }
 
-        .qa-section-title {
-          font-family: 'Cabinet Grotesk', sans-serif;
-          font-weight: 800; font-size: 15px; color: #e8f5ee;
-          margin: 0 0 12px; display: flex; align-items: center; gap: 8px;
-        }
-
+        .qa-section-title { font-family: 'Cabinet Grotesk', sans-serif; font-weight: 800; font-size: 15px; color: #e8f5ee; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
         .qa-card { background: rgba(20,38,26,0.6); border: 1px solid rgba(45,80,64,0.5); border-radius: 16px; padding: 18px; }
         .qa-q { display: flex; gap: 10px; margin-bottom: 14px; }
         .qa-q-text { font-size: 14px; color: #c8ddd0; line-height: 1.6; }
-
         .qa-answer-row { display: flex; flex-direction: column; gap: 8px; }
         @media (min-width: 480px) { .qa-answer-row { flex-direction: row; } }
-
-        .qa-textarea {
-          flex: 1; background: rgba(9,15,11,0.8);
-          border: 1px solid #1e3828; border-radius: 10px;
-          padding: 10px 14px; color: #e8f5ee; font-size: 13px;
-          font-family: 'Instrument Sans', sans-serif;
-          outline: none; resize: none; transition: border-color 0.2s;
-        }
+        .qa-textarea { flex: 1; background: rgba(9,15,11,0.8); border: 1px solid #1e3828; border-radius: 10px; padding: 10px 14px; color: #e8f5ee; font-size: 13px; font-family: 'Instrument Sans', sans-serif; outline: none; resize: none; transition: border-color 0.2s; }
         .qa-textarea:focus { border-color: rgba(74,222,128,0.4); box-shadow: 0 0 0 3px rgba(74,222,128,0.07); }
         .qa-textarea::placeholder { color: #2d5040; }
-
-        .qa-post-btn {
-          padding: 10px 20px; border-radius: 10px; border: none;
-          background: linear-gradient(135deg, #4ade80, #22c55e);
-          color: #060e09; font-family: 'Cabinet Grotesk', sans-serif;
-          font-weight: 800; font-size: 13px; cursor: pointer;
-          transition: all 0.2s; align-self: flex-end; flex-shrink: 0;
-        }
+        .qa-post-btn { padding: 10px 20px; border-radius: 10px; border: none; background: linear-gradient(135deg, #4ade80, #22c55e); color: #060e09; font-family: 'Cabinet Grotesk', sans-serif; font-weight: 800; font-size: 13px; cursor: pointer; transition: all 0.2s; align-self: flex-end; flex-shrink: 0; }
         .qa-post-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(74,222,128,0.25); }
-
         .qa-answered-card { background: rgba(20,38,26,0.4); border: 1px solid rgba(45,80,64,0.3); border-radius: 16px; padding: 18px; opacity: 0.75; }
         .qa-answer-block { margin-left: 28px; padding-top: 12px; border-top: 1px solid rgba(45,80,64,0.4); display: flex; gap: 10px; }
         .qa-a-text { font-size: 13px; color: #4d7a5e; line-height: 1.6; }
@@ -395,6 +320,18 @@ export default function Dashboard() {
         .empty-state { text-align: center; padding: 60px 20px; }
         .empty-state-icon { font-size: 40px; margin-bottom: 12px; }
         .empty-state-text { font-size: 14px; color: #3d6b4f; }
+
+        /* 2FA styles */
+        .twofa-input { width: 100%; background: rgba(9,15,11,0.8); border: 1px solid #1e3828; border-radius: 10px; padding: 10px 14px; color: #e8f5ee; font-size: 18px; font-family: monospace; outline: none; text-align: center; letter-spacing: 6px; transition: border-color 0.2s; box-sizing: border-box; }
+        .twofa-input:focus { border-color: rgba(74,222,128,0.4); }
+        .twofa-btn { padding: 10px 20px; border-radius: 10px; border: none; background: linear-gradient(135deg, #4ade80, #22c55e); color: #060e09; font-family: 'Cabinet Grotesk', sans-serif; font-weight: 800; font-size: 13px; cursor: pointer; transition: all 0.2s; width: 100%; margin-top: 10px; }
+        .twofa-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .twofa-danger-btn { padding: 10px 20px; border-radius: 10px; border: 1px solid rgba(248,113,113,0.3); background: rgba(248,113,113,0.08); color: #f87171; font-family: 'Cabinet Grotesk', sans-serif; font-weight: 800; font-size: 13px; cursor: pointer; transition: all 0.2s; width: 100%; margin-top: 10px; }
+        .twofa-danger-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .twofa-secret { font-family: monospace; background: rgba(9,15,11,0.8); border: 1px solid #1e3828; border-radius: 8px; padding: 8px 12px; color: #4ade80; font-size: 13px; word-break: break-all; margin: 8px 0; display: block; }
+
+        .regen-btn { background: none; border: 1px solid rgba(45,80,64,0.6); border-radius: 8px; color: #3d6b4f; font-size: 11px; cursor: pointer; padding: 4px 10px; font-family: 'Instrument Sans', sans-serif; transition: all 0.2s; margin-left: 8px; }
+        .regen-btn:hover { color: #f87171; border-color: rgba(248,113,113,0.3); }
       `}</style>
 
       <div className="db-root">
@@ -416,7 +353,9 @@ export default function Dashboard() {
             <h1>Hey, {teacher.name} 👋</h1>
             <p>
               {teacher.subject && `${teacher.subject} · `}
-              Your page: <span className="db-welcome-slug">/f/{teacher.slug}</span>
+              Your link:{' '}
+              <span className="db-welcome-token">/f/{formToken.slice(0, 12)}…</span>
+              <button className="regen-btn" onClick={regenerateToken} title="Regenerate link (invalidates old one)">↻ new link</button>
             </p>
           </div>
 
@@ -607,6 +546,85 @@ export default function Dashboard() {
 
           {tab === 'Settings' && settingsForm && (
             <div className="db-space">
+
+              {/* ── 2FA Card ── */}
+              <div className="db-card" style={{ borderColor: teacher.two_fa_enabled ? 'rgba(74,222,128,0.3)' : 'rgba(45,80,64,0.6)' }}>
+                <p className="db-card-title">
+                  🔐 Two-Factor Authentication
+                  {teacher.two_fa_enabled && <span style={{ marginLeft: 8, fontSize: 11, color: '#4ade80', fontWeight: 600 }}>ENABLED</span>}
+                </p>
+                <p className="db-card-sub">
+                  {teacher.two_fa_enabled
+                    ? 'Your account is protected with TOTP 2FA.'
+                    : 'Add an extra layer of security — requires an authenticator app (Google Authenticator, Authy, etc.)'}
+                </p>
+
+                {!teacher.two_fa_enabled && !twoFASetup && (
+                  <button className="twofa-btn" onClick={setup2FA} disabled={twoFALoading}>
+                    {twoFALoading ? 'Setting up…' : 'Enable 2FA →'}
+                  </button>
+                )}
+
+                {!teacher.two_fa_enabled && twoFASetup && (
+                  <div>
+                    <p style={{ fontSize: 13, color: '#8ab89a', marginBottom: 8 }}>
+                      1. Scan this secret in your authenticator app, or enter it manually:
+                    </p>
+                    <code className="twofa-secret">{twoFASetup.secret}</code>
+                    <p style={{ fontSize: 12, color: '#3d6b4f', marginBottom: 12 }}>
+                      (You can also use the <code style={{ color: '#4ade80' }}>qr_url</code> to generate a QR code with any QR library.)
+                    </p>
+                    <p style={{ fontSize: 13, color: '#8ab89a', marginBottom: 8 }}>
+                      2. Enter the 6-digit OTP to activate:
+                    </p>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={twoFAOtp}
+                      onChange={e => setTwoFAOtp(e.target.value.replace(/\D/g, ''))}
+                      placeholder="123456"
+                      className="twofa-input"
+                      autoComplete="one-time-code"
+                    />
+                    <button className="twofa-btn" onClick={verify2FA} disabled={twoFALoading}>
+                      {twoFALoading ? 'Verifying…' : 'Activate 2FA'}
+                    </button>
+                  </div>
+                )}
+
+                {teacher.two_fa_enabled && (
+                  <div>
+                    <p style={{ fontSize: 13, color: '#8ab89a', marginBottom: 8 }}>
+                      To disable, enter your password and a current OTP:
+                    </p>
+                    <input
+                      type="password"
+                      value={disablePassword}
+                      onChange={e => setDisablePassword(e.target.value)}
+                      placeholder="Current password"
+                      className="twofa-input"
+                      style={{ fontSize: 15, letterSpacing: 'normal', marginBottom: 8 }}
+                      autoComplete="current-password"
+                    />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={disableOtp}
+                      onChange={e => setDisableOtp(e.target.value.replace(/\D/g, ''))}
+                      placeholder="123456"
+                      className="twofa-input"
+                      autoComplete="one-time-code"
+                    />
+                    <button className="twofa-danger-btn" onClick={disable2FA} disabled={twoFALoading}>
+                      {twoFALoading ? 'Disabling…' : 'Disable 2FA'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Form sections ── */}
               <div className="db-card">
                 <p className="db-card-title">Form sections</p>
                 <p className="db-card-sub">Choose what appears on your student feedback form</p>
@@ -631,6 +649,7 @@ export default function Dashboard() {
                   ))}
                 </div>
               </div>
+
               {settingsForm.show_ratings && (
                 <div className="db-card">
                   <p className="db-card-title">Custom rating fields</p>
@@ -638,7 +657,7 @@ export default function Dashboard() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
                     {settingsForm.rating_fields.map((field, index) => (
                       <div key={index} className="rating-field-row">
-                        <input value={field} onChange={e => updateRatingField(index, e.target.value)} className="rating-field-input" placeholder="Field name" maxLength={20} />
+                        <input value={field} onChange={e => updateRatingField(index, e.target.value)} className="rating-field-input" placeholder="Field name" maxLength={20} autoComplete="off" />
                         <button onClick={() => removeRatingField(index)} className="rating-remove-btn">✕</button>
                       </div>
                     ))}
@@ -648,11 +667,10 @@ export default function Dashboard() {
                   )}
                 </div>
               )}
+
               <button onClick={saveSettings} className="settings-save-btn">Save Settings</button>
-              <ChangePassword /> 
             </div>
           )}
-
         </div>
       </div>
     </>

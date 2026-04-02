@@ -3,7 +3,6 @@ import { useNavigate, Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../api'
 
-// Password must have: 8+ chars, uppercase, lowercase, number, special char
 function validatePassword(p) {
   if (p.length < 8) return 'Password must be at least 8 characters'
   if (!/[A-Z]/.test(p)) return 'Password must contain at least one uppercase letter'
@@ -26,7 +25,6 @@ export default function Register() {
       return
     }
 
-    // Validate password on frontend before sending to backend
     const pwErr = validatePassword(form.password)
     if (pwErr) {
       toast.error(pwErr)
@@ -35,6 +33,7 @@ export default function Register() {
 
     setLoading(true)
     try {
+      // form_token comes back from register — stored nowhere sensitive, used to build public URL
       await api.post('/auth/register', form)
       toast.success('Account created! Welcome.')
       navigate('/dashboard')
@@ -58,10 +57,10 @@ export default function Register() {
   }
 
   const fields = [
-    { key: 'name',     label: 'Full Name',           type: 'text',     placeholder: 'Miss Agarwal',    required: true  },
-    { key: 'subject',  label: 'Subject (optional)',   type: 'text',     placeholder: 'Mathematics',     required: false },
-    { key: 'email',    label: 'Email address',        type: 'email',    placeholder: 'you@school.com',  required: true  },
-    { key: 'password', label: 'Password',             type: 'password', placeholder: '••••••••',        required: true  },
+    { key: 'name',     label: 'Full Name',           type: 'text',     placeholder: 'Miss Agarwal',   required: true,  autoComplete: 'name'         },
+    { key: 'subject',  label: 'Subject (optional)',   type: 'text',     placeholder: 'Mathematics',    required: false, autoComplete: 'off'          },
+    { key: 'email',    label: 'Email address',        type: 'email',    placeholder: 'you@school.com', required: true,  autoComplete: 'off'          },
+    { key: 'password', label: 'Password',             type: 'password', placeholder: '••••••••',       required: true,  autoComplete: 'new-password' },
   ]
 
   return (
@@ -75,11 +74,11 @@ export default function Register() {
     }}>
       <div style={{ width: '100%', maxWidth: '420px' }}>
 
-        <div className="fade-up" style={{ textAlign: 'center', marginBottom: '32px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
             <span style={{ fontSize: '28px' }}>🖊️</span>
             <h1 style={{
-              fontFamily: 'Syne, sans-serif',
+              fontFamily: 'Cabinet Grotesk, sans-serif',
               fontSize: '36px',
               fontWeight: 800,
               color: '#4ade80',
@@ -93,13 +92,14 @@ export default function Register() {
           </p>
         </div>
 
-        <div className="fade-up-1" style={{
+        <div style={{
           background: '#1a2e22',
           border: '1px solid #2d5040',
           borderRadius: '20px',
           padding: '32px',
         }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* autocomplete="off" on the wrapper prevents browser form-fill */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} autoComplete="off">
             {fields.map(f => (
               <div key={f.key}>
                 <label style={{ display: 'block', fontSize: '13px', color: '#6b9e7e', marginBottom: '6px' }}>
@@ -111,11 +111,11 @@ export default function Register() {
                   onChange={set(f.key)}
                   placeholder={f.placeholder}
                   style={inputStyle}
+                  autoComplete={f.autoComplete}
                 />
               </div>
             ))}
 
-            {/* Password hint shown while typing */}
             {form.password && validatePassword(form.password) && (
               <p style={{ margin: 0, fontSize: '12px', color: '#f87171' }}>
                 ⚠️ {validatePassword(form.password)}
@@ -132,7 +132,7 @@ export default function Register() {
                 border: 'none',
                 background: loading ? '#2d5040' : '#4ade80',
                 color: loading ? '#6b9e7e' : '#0e1a12',
-                fontFamily: 'Syne, sans-serif',
+                fontFamily: 'Cabinet Grotesk, sans-serif',
                 fontWeight: 700,
                 fontSize: '15px',
                 cursor: loading ? 'not-allowed' : 'pointer',

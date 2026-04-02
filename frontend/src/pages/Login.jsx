@@ -5,23 +5,50 @@ import api from '../api'
 
 export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' })
+  const [otpCode, setOtpCode] = useState('')
+  const [step, setStep] = useState('credentials') // 'credentials' | 'otp'
   const [loading, setLoading] = useState(false)
-  
   const navigate = useNavigate()
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
   const handleSubmit = async () => {
-    if (!form.email || !form.password) return toast.error('Please fill in all fields')
-    setLoading(true)
-    try {
-      await api.post('/auth/login', form)
-      toast.success('Welcome back!')
-      navigate('/dashboard')
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Login failed')
-    } finally {
-      setLoading(false)
+    if (step === 'credentials') {
+      if (!form.email || !form.password) return toast.error('Please fill in all fields')
+      setLoading(true)
+      try {
+        const res = await api.post('/auth/login', form)
+
+        // 202 = credentials ok but 2FA required
+        if (res.status === 202 && res.data.two_fa_required) {
+          setStep('otp')
+          toast('Enter the OTP from your authenticator app', { icon: '🔐' })
+          return
+        }
+
+        toast.success('Welcome back!')
+        navigate('/dashboard')
+      } catch (err) {
+        toast.error(err.response?.data?.error || 'Login failed')
+      } finally {
+        setLoading(false)
+      }
+    } else {
+      // OTP step — re-send credentials + otp_code together
+      if (!otpCode) return toast.error('Please enter your OTP code')
+      setLoading(true)
+      try {
+        await api.post('/auth/login', { ...form, otp_code: otpCode })
+        toast.success('Welcome back!')
+        navigate('/dashboard')
+      } catch (err) {
+        const msg = err.response?.data?.error || 'Invalid OTP'
+        toast.error(msg)
+        // If banned, go back to credentials step
+        if (err.response?.status === 429) setStep('credentials')
+      } finally {
+        setLoading(false)
+      }
     }
   }
 
@@ -50,15 +77,6 @@ export default function Login() {
             radial-gradient(ellipse 60% 50% at 15% 80%, rgba(74,222,128,0.07) 0%, transparent 70%),
             radial-gradient(ellipse 50% 60% at 85% 20%, rgba(74,222,128,0.05) 0%, transparent 70%);
           pointer-events: none;
-        }
-
-        .login-root::after {
-          content: '';
-          position: fixed;
-          inset: 0;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
-          pointer-events: none;
-          opacity: 0.4;
         }
 
         .login-card {
@@ -224,6 +242,34 @@ export default function Login() {
         }
 
         .login-footer a:hover { border-color: #4ade80; }
+
+        .otp-hint {
+          font-size: 12px;
+          color: #4d7a5e;
+          margin: 8px 0 16px;
+          text-align: center;
+        }
+
+        .otp-back {
+          background: none;
+          border: none;
+          color: #3d6b4f;
+          font-size: 12px;
+          cursor: pointer;
+          margin-top: 12px;
+          display: block;
+          width: 100%;
+          text-align: center;
+          font-family: 'Instrument Sans', sans-serif;
+          transition: color 0.2s;
+        }
+        .otp-back:hover { color: #4ade80; }
+
+        .otp-icon {
+          text-align: center;
+          font-size: 36px;
+          margin-bottom: 12px;
+        }
       `}</style>
 
       <div className="login-root">
@@ -233,49 +279,97 @@ export default function Login() {
               <div className="login-logo-dot" />
               <span className="login-logo-text">ChalkBack</span>
             </div>
-            <h1 className="login-title">Welcome<br />back 👋</h1>
-            <p className="login-subtitle">Sign in to your teacher portal</p>
+            {step === 'credentials' ? (
+              <>
+                <h1 className="login-title">Welcome<br />back 👋</h1>
+                <p className="login-subtitle">Sign in to your teacher portal</p>
+              </>
+            ) : (
+              <>
+                <h1 className="login-title">2FA Check 🔐</h1>
+                <p className="login-subtitle">Open your authenticator app</p>
+              </>
+            )}
           </div>
 
           <div className="login-form-box">
-            <div className="field-group">
-              <div>
-                <label className="field-label">Email address</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={set('email')}
-                  onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                  placeholder="you@school.com"
-                  className="field-input"
-                />
-              </div>
-              <div>
-                <label className="field-label">Password</label>
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={set('password')}
-                  onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                  placeholder="••••••••"
-                  className="field-input"
-                />
-              </div>
-            </div>
+            {step === 'credentials' ? (
+              <>
+                {/* autocomplete="off" prevents browser autofill on the whole form */}
+                <div className="field-group" autoComplete="off">
+                  <div>
+                    <label className="field-label">Email address</label>
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={set('email')}
+                      onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                      placeholder="you@school.com"
+                      className="field-input"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div>
+                    <label className="field-label">Password</label>
+                    <input
+                      type="password"
+                      value={form.password}
+                      onChange={set('password')}
+                      onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                      placeholder="••••••••"
+                      className="field-input"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
 
-            {/* Forgot password link */}
-            <Link to="/forgot-password" className="forgot-link">
-              Forgot password?
-            </Link>
+                <Link to="/forgot-password" className="forgot-link">
+                  Forgot password?
+                </Link>
 
-            <button onClick={handleSubmit} disabled={loading} className="login-btn">
-              {loading ? 'Signing in…' : 'Sign In →'}
-            </button>
+                <button onClick={handleSubmit} disabled={loading} className="login-btn">
+                  {loading ? 'Signing in…' : 'Sign In →'}
+                </button>
 
-            <p className="login-footer">
-              No account?{' '}
-              <Link to="/register">Register here</Link>
-            </p>
+                <p className="login-footer">
+                  No account?{' '}
+                  <Link to="/register">Register here</Link>
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="otp-icon">📱</div>
+                <p className="otp-hint">
+                  Enter the 6-digit code from your authenticator app.<br />
+                  It refreshes every 30 seconds.
+                </p>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label className="field-label">One-time password</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                    onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                    placeholder="123456"
+                    className="field-input"
+                    autoComplete="one-time-code"
+                    style={{ textAlign: 'center', fontSize: 24, letterSpacing: 8 }}
+                  />
+                </div>
+
+                <button onClick={handleSubmit} disabled={loading} className="login-btn">
+                  {loading ? 'Verifying…' : 'Verify OTP →'}
+                </button>
+
+                <button className="otp-back" onClick={() => { setStep('credentials'); setOtpCode('') }}>
+                  ← Use a different account
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

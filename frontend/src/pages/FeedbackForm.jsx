@@ -14,7 +14,7 @@ const MOODS = [
 const POLL_OPTIONS = ['Too fast', 'Just right', 'Too slow']
 
 export default function FeedbackForm() {
-  const { slug } = useParams()
+  const { token } = useParams()
   const [teacher, setTeacher] = useState(null)
   const [settings, setSettings] = useState(null)
   const [mood, setMood] = useState(0)
@@ -29,13 +29,13 @@ export default function FeedbackForm() {
 
   useEffect(() => {
     Promise.all([
-      api.get(`/form/${slug}`),
-      api.get(`/form/${slug}/settings`),
+      api.get(`/form/${token}`),
+      api.get(`/form/${token}/settings`),
     ]).then(([teacherRes, settingsRes]) => {
       setTeacher(teacherRes.data)
       setSettings(settingsRes.data)
     }).catch(() => setNotFound(true))
-  }, [slug])
+  }, [token])
 
   const setRating = (field, value) => setRatings(prev => ({ ...prev, [field]: value }))
 
@@ -46,13 +46,13 @@ export default function FeedbackForm() {
     setLoading(true)
     try {
       await api.post('/feedback', {
-        teacher_slug: slug, mood, ratings,
+        form_token: token, mood, ratings,
         feedback_text: feedbackText,
         one_thing_to_improve: oneThing,
         quick_poll_answer: pollAnswer,
       })
       if (settings.show_qa && questionText.trim()) {
-        await api.post('/questions', { teacher_slug: slug, question_text: questionText.trim() })
+        await api.post('/questions', { form_token: token, question_text: questionText.trim() })
       }
       setStep(2)
     } catch {
@@ -102,7 +102,7 @@ export default function FeedbackForm() {
             Your response is completely anonymous. Thank you!
           </p>
           {settings.show_qa && (
-            <Link to={`/f/${slug}/qa`} style={{
+            <Link to={`/f/${token}/qa`} style={{
               display: 'inline-block', padding: '12px 24px', borderRadius: 12,
               background: 'rgba(20,38,26,0.8)', border: '1px solid #2d5040',
               color: '#e8f5ee', textDecoration: 'none', fontSize: 14,
@@ -417,7 +417,7 @@ export default function FeedbackForm() {
             </div>
           </div>
 
-          <form onSubmit={submit}>
+          <form onSubmit={submit} autoComplete="off">
 
             {settings.show_mood && (
               <div className="fb-card">
@@ -502,6 +502,7 @@ export default function FeedbackForm() {
                   onChange={e => setOneThing(e.target.value)}
                   placeholder="If you could change one thing about how this class is taught..."
                   className="fb-textarea"
+                  autoComplete="off"
                   
                 />
               </div>
@@ -517,6 +518,7 @@ export default function FeedbackForm() {
                   onChange={e => setQuestionText(e.target.value)}
                   placeholder="Something you didn't understand, or wanted to ask..."
                   className="fb-textarea"
+                  autoComplete="off"
                 />
               </div>
             )}
