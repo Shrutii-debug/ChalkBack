@@ -242,7 +242,7 @@ func sanitizeTeacher(t models.Teacher) map[string]interface{} {
 		"subject":        t.Subject,
 		"two_fa_enabled": t.TwoFAEnabled,
 		"created_at":     t.CreatedAt,
-		// NOTE: email, slug, form_token, password_hash, reset_token are all omitted
+		
 	}
 }
 
@@ -267,7 +267,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ── Username enumeration fix: always return the same generic error ──
+	
 	const genericErr = "invalid credentials"
 
 	var teacher models.Teacher
@@ -370,9 +370,7 @@ func GetMe(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// ── Setup2FA ──────────────────────────────────────────────────────────────────
-// Protected. Generates a TOTP secret and returns QR code URL for the teacher to scan.
-// The teacher must then confirm with Verify2FA before 2FA is activated.
+
 
 func Setup2FA(w http.ResponseWriter, r *http.Request) {
 	teacherID := r.Context().Value(authmw.TeacherIDKey).(uint)
