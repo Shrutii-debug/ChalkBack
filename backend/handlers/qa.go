@@ -84,7 +84,7 @@ func isDuplicateQuestion(newQ string, existing []models.Question) bool {
 
 func SubmitQuestion(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		TeacherSlug  string `json:"form_token"`
+		FormToken  string `json:"form_token"`
 		QuestionText string `json:"question_text"`
 	}
 
@@ -104,7 +104,7 @@ func SubmitQuestion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var teacher models.Teacher
-	if err := config.DB.Where("slug = ?", req.TeacherSlug).First(&teacher).Error; err != nil {
+	if err := config.DB.Where("form_token = ?", req.FormToken).First(&teacher).Error; err != nil {
 		jsonError(w, "teacher not found", http.StatusNotFound)
 		return
 	}
