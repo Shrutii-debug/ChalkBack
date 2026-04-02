@@ -460,7 +460,9 @@ export default function Dashboard() {
                 const moodEmoji = ['', '😕', '😐', '😊', '🔥'][f.mood] || '—'
                 const date = new Date(f.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
                 let ratingsObj = {}
-                try { ratingsObj = JSON.parse(f.ratings_json) } catch {}
+                try { ratingsObj = JSON.parse(f.ratings_json) } catch {
+                  //
+                }
                 return (
                   <div key={f.id} className="fb-entry">
                     <div className="fb-entry-header">

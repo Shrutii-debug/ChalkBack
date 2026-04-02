@@ -8,6 +8,7 @@ export default function StarRating({ value, onChange, label }) {
         {[1, 2, 3, 4, 5].map(star => (
           <button
             key={star}
+            type="button"
             onClick={() => onChange && onChange(star)}
             style={{
               background: 'none',
